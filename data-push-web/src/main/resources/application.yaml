@@ -1,0 +1,17 @@
+server:
+  port: 20001
+  servlet:
+    context-path: /api
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/doc?useSSL=false&serverTimezone=UTC
+    username: root
+    password: gzw941120
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+
+
+logging:
+  level:
+    root: info
+    kd.data: debug

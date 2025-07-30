@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: push-web-deployment
+  labels:
+    app: push-web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: push-web
+  template:
+    metadata:
+      labels:
+        app: push-web
+    spec:
+      serviceAccountName: push-web-service-account  # 指定服务账户
+      automountServiceAccountToken: false  # 禁用自动挂载服务账户
+      containers:
+        - name: push-web-container
+          image: push-web:v1.0.0  # 使用特定版本标签
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ENV_VAR_NAME
+              value: "ENV_VAR_VALUE"
+          resources:
+            requests:
+              cpu: "100m"  # CPU请求
+              memory: "256Mi"  # 内存请求
+            limits:
+              cpu: "500m"  # CPU限制
+              memory: "512Mi"  # 内存限制
+              ephemeral-storage: "1Gi"  # 存储限制
+          volumeMounts:
+            - name: app-storage
+              mountPath: /app-data
+      volumes:
+        - name: app-storage
+          emptyDir: {}  # 使用emptyDir作为临时存储

@@ -80,9 +80,17 @@ Redis：用于分布式协调和检查点存储
 
 Maven 3.8+：项目构建工具
 
+<h1>启动步骤</h1>
+<h2>1、克隆仓库：</h2>
 
 
+<div style="box-sizing: border-box;color: green">git clone git@gitlab.dev.cnki.net:yxweb/yanxue-data-push.git</div>
 
+<h2>2、构建项目 </h2>
+<li>修改data-push-web 的数据库配置 (可改为内存数据库) 只为项目启动 无实际意义
+<li><span style="color: green">mvn clean package -DskipTests</span></li>
+<li><span style="color: green">docker build -t push-web -f .\data-push-dist\docker\Dockerfile .</span></li>
+<li>切换到kubernates目录  执行 <span style="color: green">kubectl apply -f  deployment.yaml</span></li>
 <h1>未来路线图</h1>
 <h2>短期计划 (2025 Q4)</h2>
 

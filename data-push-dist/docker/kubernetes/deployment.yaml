@@ -28,6 +28,7 @@ spec:
             requests:
               cpu: "100m"  # CPU请求
               memory: "256Mi"  # 内存请求
+              ephemeral-storage: "1Gi"  # 存储请求
             limits:
               cpu: "500m"  # CPU限制
               memory: "512Mi"  # 内存限制

@@ -151,7 +151,6 @@ public class BigDataSyncTool<T> {
             String maxCheckpointInShard = dataAccessor.getMaxCheckpointInShard(shardId, totalShards);
             coordinator.saveCheckpoint(lockKey, maxCheckpointInShard);
             log.info("Shard {} completed", shardId);
-            stats.completeShard(shardId);
             scheduler.shutdown();
         } catch (Exception e) {
             log.error("Shard {} failed: {}", shardId, e.getMessage());

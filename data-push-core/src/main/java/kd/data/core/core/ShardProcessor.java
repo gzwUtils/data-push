@@ -73,7 +73,6 @@ public class ShardProcessor<T> {
             }
 
             stats.completeShard(shardId);
-            stats.getShardDurations().put(shardId, System.currentTimeMillis() - startTime);
             log.info("handler::recordsProcessed:{}",recordsProcessed);
         } catch (Exception e) {
             stats.failShard();

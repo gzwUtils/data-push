@@ -1,6 +1,7 @@
 package kd.data.core.customer.target;
+import kd.data.core.exception.SyncException;
+
 import java.io.Closeable;
-import java.sql.SQLException;
 
 /**
  * 目标连接器接口
@@ -11,7 +12,7 @@ import java.sql.SQLException;
 @SuppressWarnings("unused")
 public interface TargetConnector extends Closeable {
 
-    void connect() throws SQLException;
+    void connect() throws SyncException;
     boolean isConnected();
 
     @Override

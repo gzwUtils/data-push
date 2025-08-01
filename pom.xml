@@ -32,6 +32,7 @@
         <mybatis-spring-boot-starter.version>2.2.2</mybatis-spring-boot-starter.version>
         <lombok.version>1.18.28</lombok.version>
         <snake.version>1.1.10.7</snake.version>
+        <elasticsearch.version>7.17.13</elasticsearch.version>
     </properties>
 
     <dependencyManagement>
@@ -42,9 +43,6 @@
                 <artifactId>spring-boot-starter-web</artifactId>
                 <version>${spring-boot.version}</version>
             </dependency>
-
-
-
             <!-- 简化后的 Kafka 依赖管理 -->
             <dependency>
                 <groupId>org.springframework.kafka</groupId>
@@ -111,6 +109,7 @@
                 <artifactId>snappy-java</artifactId>
                 <version>${snake.version}</version>
             </dependency>
+
         </dependencies>
     </dependencyManagement>
 

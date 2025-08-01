@@ -1,0 +1,8 @@
+kd\data\service\datasource\ConsumerDataAccessFactoryManager$1.class
+kd\data\service\exception\TaskException.class
+kd\data\service\model\SyncTaskConfig.class
+kd\data\service\task\SyncTaskManager.class
+kd\data\service\datasource\DataSourceManager.class
+kd\data\service\datasource\ConsumerDataAccessFactoryManager.class
+kd\data\service\config\CoordinatorConfig.class
+kd\data\service\datasource\DataAccessorFactoryManager.class

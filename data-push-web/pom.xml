@@ -7,27 +7,39 @@
         <groupId>kd.data.push</groupId>
         <artifactId>data-push</artifactId>
         <version>1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath> <!-- 显式指定父POM路径 -->
     </parent>
 
     <artifactId>data-push-web</artifactId>
     <packaging>jar</packaging>
 
     <dependencies>
-
         <dependency>
             <groupId>kd.data.push</groupId>
             <artifactId>data-push-service</artifactId>
             <version>${project.version}</version>
         </dependency>
-    </dependencies>
 
+        <!-- 使用父POM管理的版本 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration><mainClass>kd.data.web.SYncPushApplication</mainClass></configuration>
+                <configuration>
+                    <mainClass>kd.data.web.SYncPushApplication</mainClass>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
@@ -36,33 +48,39 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- 指定JDK编译版本 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
-                    <encoding>UTF-8</encoding>
-                </configuration>
             </plugin>
-            <!-- 打包跳过测试 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.2</version>
                 <configuration>
                     <skipTests>true</skipTests>
                 </configuration>
             </plugin>
         </plugins>
 
-        <!-- 配置资源目录（就是在这里进行配置） -->
         <resources>
             <resource>
-                <directory>src/main/resources</directory><!--所在的目录-->
+                <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+                <includes>
+                    <include>**/*.properties</include>
+                    <include>**/*.xml</include>
+                    <include>**/*.yml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>**/*.properties</exclude>
+                    <exclude>**/*.xml</exclude>
+                    <exclude>**/*.yml</exclude>
+                </excludes>
             </resource>
         </resources>
     </build>
-
 </project>

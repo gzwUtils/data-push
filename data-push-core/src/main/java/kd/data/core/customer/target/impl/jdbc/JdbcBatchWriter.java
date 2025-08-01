@@ -1,4 +1,4 @@
-package kd.data.core.customer.target.impl;
+package kd.data.core.customer.target.impl.jdbc;
 
 import kd.data.core.customer.meta.ConsumerMetadata;
 import kd.data.core.customer.target.TargetConnector;

@@ -7,21 +7,22 @@ import kd.data.core.customer.target.targetenums.TargetEnums;
 import lombok.Data;
 
 /**
+ * 写入mysql
  * @author gaozw
  * @date 2025/7/28 9:41
  */
 
 @Data
-@ConsumerTarget(TargetEnums.JDBC)
-@CustomerTableName("target_user")
+@ConsumerTarget(TargetEnums.ELASTICSEARCH)
+@CustomerTableName("users")
 public class TargetUserEntity {
 
-    @ConsumerField(value = "user_id",role = ConsumerField.FieldRole.ID)
+    @ConsumerField(value = "id",role = ConsumerField.FieldRole.ID)
     private String id;
 
-    @ConsumerField("full_name")
+    @ConsumerField("username")
     private String name;
 
-    @ConsumerField("email_address")
+    @ConsumerField("email")
     private String email;
 }

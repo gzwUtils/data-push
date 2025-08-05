@@ -4,6 +4,8 @@ import kd.data.core.customer.BatchConsumerService;
 import kd.data.core.customer.meta.ConsumerMetadata;
 import kd.data.core.customer.target.TargetConnector;
 import kd.data.core.customer.target.TargetWriter;
+import kd.data.core.customer.target.impl.es.ElasticsearchWriter;
+import kd.data.core.customer.target.impl.es.EsTargetConnector;
 import kd.data.core.customer.target.impl.jdbc.JdbcBatchWriter;
 import kd.data.core.customer.target.impl.jdbc.JdbcTargetConnector;
 import kd.data.core.customer.target.targetenums.TargetEnums;
@@ -59,7 +61,7 @@ public class ConsumerDataAccessFactoryManager {
         TargetConnector connector = new JdbcTargetConnector(dataSource);
         TargetWriter<T> writer = new JdbcBatchWriter<>();
 
-        consumer.registerTarget(TargetEnums.JDBC.name(), connector);
+        consumer.registerConnector(TargetEnums.JDBC.name(), connector);
         consumer.registerWriter(TargetEnums.JDBC.name(), writer);
     }
 
@@ -67,8 +69,16 @@ public class ConsumerDataAccessFactoryManager {
     private <T> void registerEsTarget(
             BatchConsumerService<T> consumer,
             Map<String, Object> config) {
-
+        Object password = config.getOrDefault("password", "");
+        Object username = config.getOrDefault("username", "");
+        Object nodes = config.getOrDefault("clusterNodes", "localhost:9200");
         // 创建ES连接器
+        EsTargetConnector connector = new EsTargetConnector.Builder().username(String.valueOf(username))
+                .password(String.valueOf(password)).clusterNodes(String.valueOf(nodes)).build();
+
+        ElasticsearchWriter<T> writer = new ElasticsearchWriter<>();
+        consumer.registerConnector(TargetEnums.ELASTICSEARCH.name(), connector);
+        consumer.registerWriter(TargetEnums.ELASTICSEARCH.name(),writer);
     }
 
     @SuppressWarnings("unused")

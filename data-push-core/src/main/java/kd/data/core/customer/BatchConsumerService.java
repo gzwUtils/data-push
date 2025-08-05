@@ -47,7 +47,7 @@ public class BatchConsumerService<T> implements Consumer<List<T>> {
         });
     }
 
-    public void registerTarget(String targetId, TargetConnector connector) {
+    public void registerConnector(String targetId, TargetConnector connector) {
         connectors.put(targetId, connector);
     }
 

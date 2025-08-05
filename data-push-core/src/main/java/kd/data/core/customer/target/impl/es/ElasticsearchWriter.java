@@ -1,5 +1,6 @@
 package kd.data.core.customer.target.impl.es;
 
+import kd.data.core.customer.annotation.ConsumerField;
 import kd.data.core.customer.meta.ConsumerMetadata;
 import kd.data.core.customer.target.TargetConnector;
 import kd.data.core.customer.target.TargetWriter;
@@ -9,10 +10,8 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.data.elasticsearch.core.query.IndexQuery;
 import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 
 /**
  * es 写入
@@ -20,7 +19,6 @@ import java.util.Map;
  * @author gaozw
  * @date 2025/8/1 13:46
  */
-@SuppressWarnings("unused")
 public class ElasticsearchWriter<T> implements TargetWriter<T> {
 
 
@@ -39,9 +37,14 @@ public class ElasticsearchWriter<T> implements TargetWriter<T> {
         // 准备批量索引请求
         List<IndexQuery> indexQueries = new ArrayList<>(batch.size());
         for (T item : batch) {
-            Map<String, Object> document = createDocument(item, metadata);
             IndexQueryBuilder builder = new IndexQueryBuilder()
-                    .withObject(document);
+                    .withObject(item);
+
+            // 安全处理ID：仅当ID存在时才设置
+            String id = extractId(item, metadata);
+            if (id != null) {
+                builder.withId(id);
+            }
 
             indexQueries.add(builder.build());
         }
@@ -70,28 +73,19 @@ public class ElasticsearchWriter<T> implements TargetWriter<T> {
     }
 
 
-
-
-    private Map<String, Object> createDocument(T item, ConsumerMetadata metadata) {
-        Map<String, Object> document = new HashMap<>();
-        Class<?> entityType = item.getClass();
-
-        for (ConsumerMetadata.ConsumerFieldModel fieldModel : metadata.getFields()) {
-            try {
-                Object value = ReflectionUtils.getFieldValue(item, fieldModel.getFieldName());
-                // 使用目标字段名（如果提供）
-                String fieldName = fieldModel.getTargetName();
-                if (fieldName == null || fieldName.isEmpty()) {
-                    fieldName = fieldModel.getFieldName();
-                }
-                // 添加到文档
-                document.put(fieldName, value);
-            } catch (Exception e) {
-                // 处理字段访问异常
-                throw new SyncException("Failed to access field: " + fieldModel.getFieldName(), e);
-            }
-        }
-
-        return document;
+    // 从元数据提取ID字段值
+    private String extractId(T item, ConsumerMetadata metadata) {
+        return metadata.getFields().stream()
+                .filter(f -> Objects.equals(f.getRole(), ConsumerField.FieldRole.ID.name()))
+                .findFirst()
+                .map(field -> {
+                    try {
+                        Object idVal = ReflectionUtils.getFieldValue(item, field.getFieldName());
+                        return idVal != null ? idVal.toString() : null;
+                    } catch (Exception e) {
+                        throw new SyncException("Failed to extract ID", e);
+                    }
+                })
+                .orElse(null);
     }
 }

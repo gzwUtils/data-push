@@ -7,6 +7,8 @@ import kd.data.core.model.SyncConfig;
 import kd.data.core.model.SyncStats;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -216,7 +218,8 @@ public class BigDataSyncTool<T> {
         private final AtomicInteger counter = new AtomicInteger(0);
 
         @Override
-        public Thread newThread(Runnable r) {
+        @SuppressWarnings("all")
+        public Thread newThread(@NotNull Runnable r) {
             Thread thread = new Thread(r, "sync-worker-" + counter.incrementAndGet());
             thread.setDaemon(true);
             return thread;

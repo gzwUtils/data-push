@@ -51,4 +51,8 @@ public class TaskConfigCache {
     public void removeTask(String taskId) {
         taskCache.asMap().remove(taskId);
     }
+
+    public boolean containsKey(String taskId) {
+      return   taskCache.asMap().containsKey(taskId);
+    }
 }

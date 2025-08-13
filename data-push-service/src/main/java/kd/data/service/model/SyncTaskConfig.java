@@ -25,4 +25,7 @@ public class SyncTaskConfig {
     private boolean incremental;
     /**定时任务表达式*/
     private String cronExpression;
+
+    /**是否已持久化*/
+    private boolean persist;
 }

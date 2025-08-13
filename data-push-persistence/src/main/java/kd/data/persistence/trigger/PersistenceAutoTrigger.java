@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PreDestroy;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static kd.data.persistence.enums.BusinessStrategyCode.PERSISTENCE;
 
@@ -51,10 +52,12 @@ public class PersistenceAutoTrigger {
         try {
             while (failureCount < MAX_FAILURES) {
                 List<SyncTaskConfig> batch = taskConfigCache.getTasks(page, pageSize);
+
+                batch = batch.stream().filter(t->!t.isPersist()).collect(Collectors.toList());
+
                 if (batch.isEmpty()) {
                     break;
                 }
-
                 for (SyncTaskConfig task : batch) {
                     if (failureCount >= MAX_FAILURES) {
                         break;
@@ -62,7 +65,8 @@ public class PersistenceAutoTrigger {
                     if (processTask(task)) {
                         processed++;
                         // 成功处理后立即移除
-                        taskConfigCache.removeTask(task.getTaskId());
+                        task.setPersist(true);
+                        taskConfigCache.addTask(task);
                     } else {
                         failureCount++;
                         log.error("处理任务失败: taskId={}", task.getTaskId());
@@ -75,7 +79,7 @@ public class PersistenceAutoTrigger {
                 log.debug("定时处理完成: 数量={}", processed);
             }
         } catch (Exception e) {
-            log.error("定时处理异常", e);
+            log.error("定时处理异常:{}", e.getMessage(),e);
         }
     }
 
@@ -88,7 +92,8 @@ public class PersistenceAutoTrigger {
         for (SyncTaskConfig task : allTasks) {
             if (processTask(task)) {
                 successCount++;
-                taskConfigCache.removeTask(task.getTaskId());
+                task.setPersist(true);
+                taskConfigCache.addTask(task);
             }
         }
 

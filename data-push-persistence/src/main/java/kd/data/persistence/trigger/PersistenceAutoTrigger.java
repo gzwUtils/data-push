@@ -1,4 +1,6 @@
 package kd.data.persistence.trigger;
+
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import kd.data.core.persistence.PersistenceService;
 import kd.data.persistence.ProcessContext;
 import kd.data.persistence.ProcessControl;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
 import javax.annotation.PreDestroy;
 import java.util.List;
 
@@ -38,49 +41,88 @@ public class PersistenceAutoTrigger {
         this.taskConfigCache = taskConfigCache;
     }
 
-    // 定时持久化
-    @Scheduled(fixedRate = 1000)
+    @Scheduled(fixedDelay = 5000)
     public void scheduledPersist() {
-        R result = persistenceServiceHandle();
-        if(log.isDebugEnabled()){
-            log.debug("定时持久化结果: 成功={}, 数量={}",
-                    result.getSuccess(), result.getMessage());
-        }
-    }
+        int page = 0;
+        int pageSize = 100;
+        int processed = 0;
 
-    private R persistenceServiceHandle() {
-        List<SyncTaskConfig> allTasks = taskConfigCache.getAllTasks();
-
-        if(allTasks.isEmpty()){
-            return R.success();
-        }
         try {
-            allTasks.forEach(t->{
-
-                ProcessModel processModel = ProcessModel.builder().taskId(t.getTaskId()).taskName(t.getTaskName()).desConfig(t.getDestinationConfig())
-                        .sourceConfig(t.getSourceConfig()).sourceType(t.getSourceType()).build();
-                ProcessContext context = ProcessContext.builder()
-                        .strategyCode(PERSISTENCE.name())
-                        .model(processModel)
-                        .needBreak(false)
-                        .response(R.success()).build();
-                ProcessContext process = processControl.process(context);
-                if(!process.getNeedBreak()){
-                    taskConfigCache.removeTask(processModel.getTaskId());
+            while (true) {
+                List<SyncTaskConfig> batch = taskConfigCache.getTasks(page, pageSize);
+                if (batch.isEmpty()) {
+                    break;
                 }
-            });
-            return R.success(String.valueOf(allTasks.size()));
-        } catch (Exception e){
-            log.error("持久化失败 {}",e.getMessage(),e);
-            return R.fail(String.valueOf(allTasks.size()));
+
+                for (SyncTaskConfig task : batch) {
+                    if (processTask(task)) {
+                        processed++;
+                        // 成功处理后立即移除
+                        taskConfigCache.removeTask(task.getTaskId());
+                    }
+                }
+                page++;
+            }
+
+            if (log.isDebugEnabled()) {
+                log.debug("定时处理完成: 数量={}", processed);
+            }
+        } catch (Exception e) {
+            log.error("定时处理异常", e);
         }
     }
 
     // 停机持久化
     @PreDestroy
     public void shutdownPersist() {
-        R result = persistenceServiceHandle();
-        log.info("停机持久化结果: 成功={}, 数量={}",
-                result.getSuccess(), result.getMessage());
+        List<SyncTaskConfig> allTasks = taskConfigCache.getAllTasks();
+        int successCount = 0;
+
+        for (SyncTaskConfig task : allTasks) {
+            if (processTask(task)) {
+                successCount++;
+                taskConfigCache.removeTask(task.getTaskId());
+            }
+        }
+
+        log.info("停机处理完成: 总数={}, 成功={}", allTasks.size(), successCount);
     }
+
+    // 添加缓存统计
+    @Scheduled(fixedRate = 60000)
+    public void logCacheStats() {
+        CacheStats stats = taskConfigCache.stats();
+        log.info("缓存统计: 命中率={}%, 淘汰数={}, 加载数={}",
+                stats.hitRate() * 100,
+                stats.evictionCount(),
+                stats.loadCount());
+    }
+
+
+    // 独立任务处理方法
+    private boolean processTask(SyncTaskConfig task) {
+        try {
+            ProcessModel model = ProcessModel.builder()
+                    .taskId(task.getTaskId())
+                    .taskName(task.getTaskName())
+                    .desConfig(task.getDestinationConfig())
+                    .sourceConfig(task.getSourceConfig())
+                    .sourceType(task.getSourceType())
+                    .build();
+
+            ProcessContext context = ProcessContext.builder()
+                    .strategyCode(PERSISTENCE.name())
+                    .model(model)
+                    .needBreak(false)
+                    .response(R.success())
+                    .build();
+
+            ProcessContext result = processControl.process(context);
+            return !result.getNeedBreak();
+        } catch (Exception e) {
+            log.error("任务[{}]处理失败: {}", task.getTaskId(), e.getMessage());
+            return false;
+        }
+    }
+
 }

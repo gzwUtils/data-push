@@ -1,12 +1,14 @@
 package kd.data.service.task;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import kd.data.service.model.SyncTaskConfig;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 任务配置缓存
@@ -17,22 +19,36 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class TaskConfigCache {
 
-    // 内存存储任务配置
-    private final Map<String, SyncTaskConfig> taskCache = new ConcurrentHashMap<>();
+
+    @Resource
+    private Cache<String,SyncTaskConfig> taskCache;
+
+    // 新增：分页获取任务方法
+    public List<SyncTaskConfig> getTasks(int offset, int limit) {
+        return taskCache.asMap().values().stream()
+                .skip(offset)
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+
+    public SyncTaskConfig getTask(String taskId) {
+        return taskCache.getIfPresent(taskId);
+    }
+
+    public List<SyncTaskConfig> getAllTasks() {
+        return new ArrayList<>(taskCache.asMap().values());
+    }
 
     public void addTask(SyncTaskConfig task) {
         taskCache.put(task.getTaskId(), task);
     }
 
-    public SyncTaskConfig getTask(String taskId) {
-        return taskCache.get(taskId);
-    }
 
-    public List<SyncTaskConfig> getAllTasks() {
-        return new ArrayList<>(taskCache.values());
+    public CacheStats stats() {
+       return taskCache.stats();
     }
 
     public void removeTask(String taskId) {
-        taskCache.remove(taskId);
+        taskCache.asMap().remove(taskId);
     }
 }

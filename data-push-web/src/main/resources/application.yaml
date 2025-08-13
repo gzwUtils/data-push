@@ -10,10 +10,10 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 persistence:
-  enabled: false
+  enabled: true
   mode: file
 
 logging:
   level:
     root: info
-    kd.data: debug
+    kd.data: info

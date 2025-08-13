@@ -38,7 +38,7 @@ public class ShardProcessor<T> {
         this.distributedCoordinator = distributedCoordinator;
     }
 
-    public void processShard(int shardId, int totalShards,
+    public void processShard(String lockKey,int shardId, int totalShards,
                              String checkpoint, DataAccessor<T> dataAccessor) {
         long startTime = System.currentTimeMillis();
         stats.startShard(shardId);
@@ -62,14 +62,14 @@ public class ShardProcessor<T> {
                     processBatch(buffer, shardId);
                     recordsProcessed += buffer.size();
                     buffer.clear();
-                    updateCheckpoint(shardId, re, dataAccessor);
+                    updateCheckpoint(lockKey, re, dataAccessor);
                 }
             }
 
             if (!buffer.isEmpty()) {
                 processBatch(buffer, shardId);
                 recordsProcessed += buffer.size();
-                updateCheckpoint(shardId, buffer.get(buffer.size() - 1), dataAccessor);
+                updateCheckpoint(lockKey, buffer.get(buffer.size() - 1), dataAccessor);
             }
 
             stats.completeShard(shardId);
@@ -128,10 +128,9 @@ public class ShardProcessor<T> {
                 compressedBatch.length, shardId);
     }
 
-    private void updateCheckpoint(int shardId, T re, DataAccessor<T> dataAccessor) {
-        String shardKey = "shard_" + shardId;
+    private void updateCheckpoint(String lockKey, T re, DataAccessor<T> dataAccessor) {
         String checkpoint = dataAccessor.getRecordId(re);
-        distributedCoordinator.saveCheckpoint(shardKey,checkpoint);
+        distributedCoordinator.saveCheckpoint(lockKey,checkpoint);
     }
 
     private boolean shouldFilter(T re,DataAccessor<T> dataAccessor) {

@@ -39,10 +39,13 @@ public class BigDataSyncTool<T> {
     private final SyncStats stats = new SyncStats();
     private final ExecutorService executor;
 
-    public BigDataSyncTool(SyncConfig config,
+    private final String taskId;
+
+    public BigDataSyncTool(String taskId,SyncConfig config,
                            DataAccessor<T> dataAccessor,
                            Consumer<List<T>> batchConsumer,
                            DistributedCoordinator coordinator) {
+        this.taskId = taskId;
         this.config = config;
         this.dataAccessor = dataAccessor;
         this.batchConsumer = batchConsumer;
@@ -128,7 +131,7 @@ public class BigDataSyncTool<T> {
     private void processShard(int shardId, int totalShards, ShardProcessor<T> processor) {
 
 
-        String lockKey = "shard_" + shardId;
+        String lockKey = taskId +":"+"shard_" + shardId;
 
         if (!coordinator.tryLock(lockKey, config.getLockTimeout())) {
             log.error("Shard {} skipped (already processing) ", shardId);
@@ -149,7 +152,7 @@ public class BigDataSyncTool<T> {
             String checkpoint = coordinator.loadCheckpoint(lockKey);
             log.info("Processing shard {} from checkpoint: {}", shardId, checkpoint);
 
-            processor.processShard(shardId, totalShards, checkpoint, dataAccessor);
+            processor.processShard(lockKey,shardId, totalShards, checkpoint, dataAccessor);
             String maxCheckpointInShard = dataAccessor.getMaxCheckpointInShard(shardId, totalShards);
             coordinator.saveCheckpoint(lockKey, maxCheckpointInShard);
             log.info("Shard {} completed", shardId);

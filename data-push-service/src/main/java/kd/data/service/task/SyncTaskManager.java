@@ -87,6 +87,7 @@ public class SyncTaskManager {
 
             // 5. 创建并启动同步引擎
             BigDataSyncTool<T> syncTool = new BigDataSyncTool<>(
+                    config.getTaskId(),
                     config.getSyncConfig(),
                      dataAccessor,
                      batchConsumer,

@@ -46,19 +46,26 @@ public class PersistenceAutoTrigger {
         int page = 0;
         int pageSize = 100;
         int processed = 0;
-
+        int failureCount = 0; // 失败计数器
+        final int MAX_FAILURES = 3; // 最大允许失败次数
         try {
-            while (true) {
+            while (failureCount < MAX_FAILURES) {
                 List<SyncTaskConfig> batch = taskConfigCache.getTasks(page, pageSize);
                 if (batch.isEmpty()) {
                     break;
                 }
 
                 for (SyncTaskConfig task : batch) {
+                    if (failureCount >= MAX_FAILURES) {
+                        break;
+                    }
                     if (processTask(task)) {
                         processed++;
                         // 成功处理后立即移除
                         taskConfigCache.removeTask(task.getTaskId());
+                    } else {
+                        failureCount++;
+                        log.error("处理任务失败: taskId={}", task.getTaskId());
                     }
                 }
                 page++;

@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -28,7 +29,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class FilePersistenceService implements PersistenceService<ProcessModel> {
 
     // 配置参数
-    private static final long MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    private static final long MAX_FILE_SIZE = 100L * 1024 * 1024; // 100MB
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final DateTimeFormatter FILE_TIME_FORMAT = DateTimeFormatter.ofPattern("HHmmss");
 
@@ -101,10 +102,14 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
 
     private boolean shouldCreateNewFile() {
         // 第一次写入
-        if (currentWriter == null) return true;
+        if (currentWriter == null) {
+            return true;
+        }
 
         // 日期变化
-        if (!LocalDate.now().equals(currentDate)) return true;
+        if (!LocalDate.now().equals(currentDate)) {
+            return true;
+        }
 
         // 文件大小超过限制
         return currentFileSize.get() >= MAX_FILE_SIZE;
@@ -117,7 +122,7 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
         // 准备新文件路径
         LocalDate today = LocalDate.now();
         String dateDir = today.format(DATE_FORMAT);
-        String timestamp = LocalDate.now().format(FILE_TIME_FORMAT);
+        String timestamp = LocalDateTime.now().format(FILE_TIME_FORMAT);
 
         Path datePath = baseStoragePath.resolve(dateDir);
         ensureDirectoryExists(datePath);

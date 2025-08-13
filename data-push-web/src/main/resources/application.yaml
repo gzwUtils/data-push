@@ -9,7 +9,9 @@ spring:
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-
+persistence:
+  enabled: false
+  mode: file
 
 logging:
   level:

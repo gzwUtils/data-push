@@ -3,9 +3,12 @@ import kd.data.core.model.SyncStats;
 import kd.data.service.exception.TaskException;
 import kd.data.service.model.SyncTaskConfig;
 import kd.data.service.task.SyncTaskManager;
+import kd.data.service.task.TaskConfigCache;
 import kd.data.web.response.ApiResponse;
 import kd.data.web.vo.TaskRequest;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 同步
@@ -22,8 +25,11 @@ public class SyncController {
 
     private final SyncTaskManager syncTaskManager;
 
-    public SyncController(SyncTaskManager syncTool) {
+    private final TaskConfigCache taskConfigCache;
+
+    public SyncController(SyncTaskManager syncTool, TaskConfigCache taskConfigCache) {
         this.syncTaskManager = syncTool;
+        this.taskConfigCache = taskConfigCache;
     }
 
     @PostMapping("/start")
@@ -68,6 +74,19 @@ public class SyncController {
         try {
             SyncStats stats = syncTaskManager.getTaskStats(taskId);
             return ApiResponse.success(stats);
+        } catch (TaskException e) {
+            return ApiResponse.error(e.getMessage());
+        }
+    }
+
+    /**
+     * 获取任务状态
+     */
+    @GetMapping("/tasks")
+    public ApiResponse<List<SyncTaskConfig>> getTasks() {
+        try {
+            List<SyncTaskConfig> allTasks = taskConfigCache.getAllTasks();
+            return ApiResponse.success(allTasks);
         } catch (TaskException e) {
             return ApiResponse.error(e.getMessage());
         }

@@ -16,7 +16,7 @@
     <dependencies>
         <dependency>
             <groupId>kd.data.push</groupId>
-            <artifactId>data-push-service</artifactId>
+            <artifactId>data-push-persistence</artifactId>
             <version>${project.version}</version>
         </dependency>
 

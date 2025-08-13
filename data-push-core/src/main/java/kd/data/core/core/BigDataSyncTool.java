@@ -1,7 +1,7 @@
 package kd.data.core.core;
 import kd.data.core.coordinator.DistributedCoordinator;
-import kd.data.core.data.DataAccessor;
-import kd.data.core.enums.Status;
+import kd.data.core.send.DataAccessor;
+import kd.data.core.model.enums.Status;
 import kd.data.core.exception.SyncException;
 import kd.data.core.model.SyncConfig;
 import kd.data.core.model.SyncStats;

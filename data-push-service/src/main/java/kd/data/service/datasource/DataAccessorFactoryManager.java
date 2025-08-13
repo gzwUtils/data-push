@@ -1,10 +1,10 @@
 package kd.data.service.datasource;
 
-import kd.data.core.data.DataAccessor;
+import kd.data.core.send.DataAccessor;
 
-import kd.data.core.data.adapter.JdbcDataAccessorAdapter;
-import kd.data.core.data.adapter.dialect.DatabaseDialectFactory;
-import kd.data.core.data.adapter.dialect.impl.AutoDetectDialectFactory;
+import kd.data.core.send.adapter.JdbcDataAccessorAdapter;
+import kd.data.core.send.adapter.dialect.DatabaseDialectFactory;
+import kd.data.core.send.adapter.dialect.impl.AutoDetectDialectFactory;
 import kd.data.core.model.SyncConfig;
 import org.springframework.stereotype.Component;
 

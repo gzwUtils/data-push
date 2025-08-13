@@ -4,8 +4,8 @@ import kd.data.core.coordinator.factory.CoordinatorFactory;
 import kd.data.core.coordinator.DistributedCoordinator;
 import kd.data.core.core.BigDataSyncTool;
 import kd.data.core.customer.BatchConsumerService;
-import kd.data.core.data.DataAccessor;
 import kd.data.core.model.SyncStats;
+import kd.data.core.send.DataAccessor;
 import kd.data.service.datasource.ConsumerDataAccessFactoryManager;
 import kd.data.service.datasource.DataAccessorFactoryManager;
 import kd.data.service.datasource.DataSourceManager;
@@ -35,6 +35,9 @@ public class SyncTaskManager {
 
     @Resource
     private ConsumerDataAccessFactoryManager consumerDataAccessFactoryManager;
+
+    @Resource
+    private TaskConfigCache taskConfigCache;
 
 
 
@@ -93,6 +96,7 @@ public class SyncTaskManager {
             // 6. 启动同步任务
             new Thread(syncTool::startSync).start();
             runningTasks.put(config.getTaskId(), syncTool);
+            taskConfigCache.addTask(config);
         } catch (Exception e) {
             log.error("Failed to start task: {}", config.getTaskId(), e);
             throw new TaskException("Task start failed", e);

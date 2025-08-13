@@ -13,6 +13,7 @@
         <module>data-push-service</module>
         <module>data-push-web</module>
         <module>data-push-dist</module>
+        <module>data-push-persistence</module>
     </modules>
 
     <parent>
@@ -24,6 +25,7 @@
 
     <properties>
         <java.version>1.8</java.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
         <spring-boot.version>2.7.18</spring-boot.version>
         <spring-kafka.version>2.9.11</spring-kafka.version>
         <kafka-clients.version>3.9.1</kafka-clients.version>
@@ -110,6 +112,12 @@
                 <version>${snake.version}</version>
             </dependency>
 
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version> <!-- 使用最新版本，你可以根据需要更改版本号 -->
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

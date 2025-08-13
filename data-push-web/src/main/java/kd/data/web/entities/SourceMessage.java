@@ -1,7 +1,7 @@
 package kd.data.web.entities;
 
-import kd.data.core.data.adapter.annotation.ColumnMapping;
-import kd.data.core.data.adapter.annotation.TableMapping;
+import kd.data.core.send.adapter.annotation.ColumnMapping;
+import kd.data.core.send.adapter.annotation.TableMapping;
 import lombok.Data;
 import java.time.LocalDateTime;
 

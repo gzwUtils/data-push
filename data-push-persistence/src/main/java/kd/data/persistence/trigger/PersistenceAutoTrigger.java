@@ -101,7 +101,7 @@ public class PersistenceAutoTrigger {
     }
 
     // 添加缓存统计
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 1800000)
     public void logCacheStats() {
         CacheStats stats = taskConfigCache.stats();
         log.info("缓存统计: 命中率={}%, 淘汰数={}, 加载数={}",

@@ -1,5 +1,4 @@
 package kd.data.web.entities;
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
@@ -9,6 +8,7 @@ import kd.data.core.customer.annotation.ConsumerTarget;
 import kd.data.core.customer.annotation.EsIndex;
 import kd.data.core.customer.target.targetenums.TargetEnums;
 import lombok.Data;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
@@ -54,15 +54,14 @@ public class TargetMessage {
         @Field(type = FieldType.Text,name = "extra",index = false)
         private String extra;
 
-        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS", shape = JsonFormat.Shape.STRING)
+
         @JsonDeserialize(using = LocalDateTimeDeserializer.class)
         @JsonSerialize(using = LocalDateTimeSerializer.class)
-        @Field(type = FieldType.Date,name = "createTime")
+        @Field(type = FieldType.Date,name = "createTime",format = DateFormat.date_hour_minute_second_millis)
         private LocalDateTime createTime;
 
         @JsonDeserialize(using = LocalDateTimeDeserializer.class)
         @JsonSerialize(using = LocalDateTimeSerializer.class)
-        @Field(type = FieldType.Date,name = "updateTime")
-        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS", shape = JsonFormat.Shape.STRING)
+        @Field(type = FieldType.Date,name = "updateTime",format = DateFormat.date_hour_minute_second_millis)
         private LocalDateTime updateTime;
 }

@@ -82,6 +82,9 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
 
             // 检查是否为检查点字段
             if (mapping != null && mapping.isCheckpoint()) {
+                if (checkpointColumn != null) {
+                    throw new SyncException("Multiple checkpoint fields in: " + entityType.getName());
+                }
                 checkpointColumn = columnName;
             }
         }
@@ -237,7 +240,14 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
     @Override
     public String getRecordId(T entity) {
         try {
-            return ReflectionUtils.getFieldValue(entity, checkpointColumn).toString();
+            // 通过检查点列名反查字段名
+            String checkpointFieldName = columnMappings.entrySet().stream()
+                    .filter(entry -> entry.getValue().equalsIgnoreCase(checkpointColumn))
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElseThrow(() -> new SyncException("Checkpoint field not found for column: " + checkpointColumn));
+
+            return ReflectionUtils.getFieldValue(entity, checkpointFieldName).toString();
         } catch (Exception e) {
             throw new SyncException("Failed to get record ID", e);
         }

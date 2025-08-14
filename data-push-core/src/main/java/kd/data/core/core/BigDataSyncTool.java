@@ -89,6 +89,10 @@ public class BigDataSyncTool<T> {
             }
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .exceptionally(ex -> {
+                        log.warn("Global completion exception", ex);
+                        throw new SyncException("Global completion exception",ex);
+                    })
                     .get(config.getGlobalTimeout(), TimeUnit.SECONDS);
 
             stats.setStatus(Status.COMPLETED);
@@ -157,7 +161,7 @@ public class BigDataSyncTool<T> {
             coordinator.saveCheckpoint(lockKey, maxCheckpointInShard);
             log.info("Shard {} completed", shardId);
             scheduler.shutdown();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("Shard {} failed: {}", shardId, e.getMessage());
             stats.failShard();
             throw new SyncException("Shard processing failed: " + shardId, e);

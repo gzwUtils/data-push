@@ -74,7 +74,7 @@ public class ShardProcessor<T> {
 
             stats.completeShard(shardId);
             log.info("handler::recordsProcessed:{}",recordsProcessed);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             stats.failShard();
             log.error("processShard error {}",e.getMessage(),e);
             throw new SyncException("Shard processing failed: " + shardId, e);

@@ -2,6 +2,8 @@ package kd.data.service.model;
 
 import kd.data.core.model.SyncConfig;
 import lombok.Data;
+
+import javax.validation.constraints.NotBlank;
 import java.util.Map;
 /**
  * @author gaozw
@@ -15,12 +17,20 @@ public class SyncTaskConfig {
     private String taskName;
     /**源配置类型*/
     private String sourceType; // mysql,oracle
+
+    @NotBlank(message = "目标任务类型不能为空")
+    private String destinationType;
     /**源配置*/
     private Map<String, Object> sourceConfig;
     /**核心配置*/
     private Map<String, Object> destinationConfig;
     /**核心配置*/
     private SyncConfig syncConfig;
+    /**源实体类全名*/
+    private String sourceEntityClassName;
+    /**目标实体类全名*/
+    private String targetEntityClassName;
+
     /**是否增量同步*/
     private boolean incremental;
     /**定时任务表达式*/

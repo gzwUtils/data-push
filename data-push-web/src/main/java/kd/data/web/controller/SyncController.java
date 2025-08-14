@@ -6,6 +6,8 @@ import kd.data.service.task.SyncTaskManager;
 import kd.data.service.task.TaskConfigCache;
 import kd.data.web.response.ApiResponse;
 import kd.data.web.vo.TaskRequest;
+import org.springframework.beans.BeanUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,7 +35,7 @@ public class SyncController {
     }
 
     @PostMapping("/start")
-    public ApiResponse<String> startSync(@RequestBody TaskRequest request) {
+    public ApiResponse<String> startSync(@Validated @RequestBody TaskRequest request) {
         try {
             // 加载实体类
             Class<?> sourceEntityClass = Class.forName(request.getSourceEntityClassName());
@@ -94,12 +96,7 @@ public class SyncController {
 
     private SyncTaskConfig convertToTaskConfig(TaskRequest request) {
         SyncTaskConfig config = new SyncTaskConfig();
-        config.setTaskId(request.getTaskId());
-        config.setTaskName(request.getTaskName());
-        config.setSourceType(request.getSourceType());
-        config.setSourceConfig(request.getSourceConfig());
-        config.setDestinationConfig(request.getDestinationConfig());
-        config.setSyncConfig(request.getSyncConfig());
+        BeanUtils.copyProperties(request,config);
         return config;
     }
 }

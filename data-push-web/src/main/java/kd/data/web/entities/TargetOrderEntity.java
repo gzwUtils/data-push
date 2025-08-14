@@ -1,4 +1,5 @@
 package kd.data.web.entities;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
@@ -8,7 +9,6 @@ import kd.data.core.customer.annotation.ConsumerTarget;
 import kd.data.core.customer.annotation.EsIndex;
 import kd.data.core.customer.target.targetenums.TargetEnums;
 import lombok.Data;
-import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
@@ -53,27 +53,28 @@ public class TargetOrderEntity {
 
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     @JsonSerialize(using = LocalDateTimeSerializer.class)
-    @Field(type = FieldType.Date,name = "order_time",format = DateFormat.date_hour_minute_second_millis)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
+    @Field(type = FieldType.Date,name = "order_time",pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime orderTime;
 
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     @JsonSerialize(using = LocalDateTimeSerializer.class)
-    @Field(type = FieldType.Date,name = "payment_time",format = DateFormat.date_hour_minute_second_millis)
+    @Field(type = FieldType.Date,name = "payment_time",pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime paymentTime;
 
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     @JsonSerialize(using = LocalDateTimeSerializer.class)
-    @Field(type = FieldType.Date,name = "delivery_time",format = DateFormat.date_hour_minute_second_millis)
+    @Field(type = FieldType.Date,name = "delivery_time",pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime deliveryTime;
 
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     @JsonSerialize(using = LocalDateTimeSerializer.class)
-    @Field(type = FieldType.Date,name = "complete_time",format = DateFormat.date_hour_minute_second_millis)
+    @Field(type = FieldType.Date,name = "complete_time",pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime completeTime;
 
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)
     @JsonSerialize(using = LocalDateTimeSerializer.class)
-    @Field(type = FieldType.Date,name = "cancel_time",format = DateFormat.date_hour_minute_second_millis)
+    @Field(type = FieldType.Date,name = "cancel_time",pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime cancelTime;
 
     @Field(type = FieldType.Long,name = "product_id")

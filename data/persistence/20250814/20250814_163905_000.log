@@ -1,0 +1,2 @@
+{"taskId":"user-message-sync-40","taskName":"用户消息同步-40","sourceType":"jdbc","sourceConfig":{"url":"jdbc:mysql://localhost:3306/doc?useSSL=false&serverTimezone=UTC","username":"root","password":"123456"},"desConfig":{"clusterNodes":"localhost:9200","disableSslVerification":false}}
+{"taskId":"user-message-sync-40","taskName":"用户消息同步-40","sourceType":"jdbc","sourceConfig":{"url":"jdbc:mysql://localhost:3306/doc?useSSL=false&serverTimezone=UTC","username":"root","password":"123456"},"desConfig":{"clusterNodes":"localhost:9200","disableSslVerification":false}}

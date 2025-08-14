@@ -1,5 +1,6 @@
 package kd.data.web.entities;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import kd.data.core.send.adapter.annotation.ColumnMapping;
 import kd.data.core.send.adapter.annotation.TableMapping;
 import lombok.Data;
@@ -42,18 +43,23 @@ public class OrderEntity {
     private Integer orderStatus;
 
     @ColumnMapping("order_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
     private LocalDateTime orderTime;
 
     @ColumnMapping("payment_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
     private LocalDateTime paymentTime;
 
     @ColumnMapping("delivery_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
     private LocalDateTime deliveryTime;
 
     @ColumnMapping("complete_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
     private LocalDateTime completeTime;
 
     @ColumnMapping("cancel_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
     private LocalDateTime cancelTime;
 
     @ColumnMapping("product_id")

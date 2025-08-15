@@ -126,7 +126,7 @@ public class BigDataSyncTool<T> {
 
 
     public void stopSync() {
-        executor.shutdownNow();
+        executor.shutdown();
         stats.setStatus(Status.STOPPED);
         log.info("Sync is stoPing...... by user request");
     }
@@ -143,15 +143,11 @@ public class BigDataSyncTool<T> {
             return;
         }
 
+        LockRenewalService renewalService = null;
         try {
-            // 启动锁续期
-            LockRenewalTask renewalTask = new LockRenewalTask(coordinator, lockKey, config);
-            ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-            scheduler.scheduleAtFixedRate(renewalTask,
-                    config.getLockRenewInterval(),
-                    config.getLockRenewInterval(),
-                    TimeUnit.SECONDS
-            );
+            // 启动带生命周期的续期服务
+            renewalService = new LockRenewalService(coordinator, lockKey, config);
+            renewalService.start();
 
             String checkpoint = coordinator.loadCheckpoint(lockKey);
             log.info("Processing shard {} from checkpoint: {}", shardId, checkpoint);
@@ -160,16 +156,91 @@ public class BigDataSyncTool<T> {
             String maxCheckpointInShard = dataAccessor.getMaxCheckpointInShard(shardId, totalShards);
             coordinator.saveCheckpoint(lockKey, maxCheckpointInShard);
             log.info("Shard {} completed", shardId);
-            scheduler.shutdown();
         } catch (Throwable e) {
             log.error("Shard {} failed: {}", shardId, e.getMessage());
             stats.failShard();
             throw new SyncException("Shard processing failed: " + shardId, e);
         } finally {
+            // 先停止续期再释放锁（关键顺序！）
+            if (renewalService != null) {
+                renewalService.stop();
+            }
             coordinator.unlock(lockKey);
         }
     }
 
+
+    // 封装续期服务
+    private static class LockRenewalService {
+        private final ScheduledExecutorService scheduler;
+        private final LockRenewalTask task;
+
+        private final SyncConfig config;
+
+        public LockRenewalService(DistributedCoordinator coordinator,
+                                  String lockKey,
+                                  SyncConfig config) {
+            this.config = config;
+            //1. 使用自定义线程工厂
+            this.scheduler = new ScheduledThreadPoolExecutor(1,getFactory(lockKey));
+
+            //2.设置拒绝策略
+            ((ScheduledThreadPoolExecutor) this.scheduler).setRejectedExecutionHandler(
+                    new ThreadPoolExecutor.CallerRunsPolicy());
+
+            // 3. 添加取消策略（// 及时移除已取消任务）
+            ((ScheduledThreadPoolExecutor) this.scheduler).setRemoveOnCancelPolicy(true);
+
+            this.task = new LockRenewalTask(coordinator, lockKey, config);
+
+        }
+
+        private static ThreadFactory getFactory(String lockKey) {
+            return new ThreadFactory() {
+                private final AtomicInteger counter = new AtomicInteger(0);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    if (r == null) {
+                        throw new SyncException("Runnable cannot be null");
+                    }
+                    Thread t = new Thread(r, "lock-renewal-" + lockKey + "-" + counter.incrementAndGet());
+                    t.setDaemon(true);  // 守护线程
+                    t.setUncaughtExceptionHandler((thread, ex) ->
+                            log.error("Thread {} failed: {}", thread.getName(), ex.getMessage()));
+                    return t;
+                }
+            };
+        }
+
+        public void start() {
+            // 验证时间配置合理性
+            if (config.getLockRenewInterval() >= config.getLockTimeout() * 0.75) {
+                throw new IllegalArgumentException("续期间隔必须小于锁超时时间的75%");
+            }
+
+            scheduler.scheduleAtFixedRate(
+                    task,
+                    config.getLockRenewInterval(),
+                    config.getLockRenewInterval(),
+                    TimeUnit.SECONDS
+            );
+        }
+
+        public void stop() {
+            scheduler.shutdownNow(); // 立即中断任务
+            try {
+                if (!scheduler.awaitTermination(3, TimeUnit.SECONDS)) {
+                    log.warn("Lock renewal thread shutdown timeout for {}", task.lockKey);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while stopping lock renewal");
+            }
+        }
+    }
+
+    // 续期任务增加中断处理
     private static class LockRenewalTask implements Runnable {
         private final DistributedCoordinator coordinator;
         private final String lockKey;
@@ -184,8 +255,16 @@ public class BigDataSyncTool<T> {
 
         @Override
         public void run() {
-            if (!coordinator.renewLock(lockKey, config.getLockTimeout())) {
-                log.error("Lock renewal failed for shard {}", lockKey);
+            try {
+                if (Thread.interrupted()) {
+                    // 响应中断
+                    return;
+                }
+                if (!coordinator.renewLock(lockKey, config.getLockTimeout())) {
+                    log.error("锁续期失败: {}", lockKey);
+                }
+            } catch (Exception e) {
+                log.error("续期任务异常", e);
             }
         }
     }

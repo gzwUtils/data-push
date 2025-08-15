@@ -18,6 +18,21 @@ public class IdMeta {
     private long timestamp;
     private long workerId;
     private long sequence;
+    private String createTimeStr; // 新增字段
+
+    public IdMeta(long id, long timestamp, long workerId, long sequence) {
+        this.id = id;
+        this.timestamp = timestamp;
+        this.workerId = workerId;
+        this.sequence = sequence;
+        this.createTimeStr = formatCreateTime(timestamp);
+    }
+
+    private String formatCreateTime(long timestamp) {
+        return timestamp > 0 ?
+                Instant.ofEpochMilli(timestamp).toString() : "N/A";
+    }
+
 
     public LocalDateTime getCreateTime() {
         return LocalDateTime.ofInstant(

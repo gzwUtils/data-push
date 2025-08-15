@@ -17,16 +17,16 @@ public class JdbcPersistenceService implements PersistenceService<ProcessModel> 
 
     @Override
     public void persist(ProcessModel model) {
-
+            //后续补充
     }
 
     @Override
     public void persistBatch(List<ProcessModel> models) {
-
+            //后续补充
     }
 
     @Override
     public void shutdown() {
-
+        //后面处理
     }
 }

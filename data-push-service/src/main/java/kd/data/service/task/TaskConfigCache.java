@@ -2,6 +2,7 @@ package kd.data.service.task;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
+import kd.data.core.model.SyncStats;
 import kd.data.service.model.SyncTaskConfig;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +21,12 @@ import java.util.stream.Collectors;
 public class TaskConfigCache {
 
 
-    @Resource
+    @Resource(name = "taskCache")
     private Cache<String,SyncTaskConfig> taskCache;
+
+
+    @Resource(name = "completedTasksCache")
+    private Cache<String, SyncStats> completedTasksCache;
 
     // 新增：分页获取任务方法
     public List<SyncTaskConfig> getTasks(int offset, int limit) {
@@ -54,5 +59,17 @@ public class TaskConfigCache {
 
     public boolean containsKey(String taskId) {
       return   taskCache.asMap().containsKey(taskId);
+    }
+
+    public SyncStats getTaskStats(String taskId) {
+        return completedTasksCache.getIfPresent(taskId);
+    }
+
+    public void addTaskStats(String taskId,SyncStats syncStats) {
+        completedTasksCache.put(taskId, syncStats);
+    }
+
+    public void clear(){
+        completedTasksCache.cleanUp();
     }
 }

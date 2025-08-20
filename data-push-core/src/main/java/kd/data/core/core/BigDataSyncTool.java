@@ -31,6 +31,11 @@ import java.util.function.Consumer;
 @Slf4j
 public class BigDataSyncTool<T> {
 
+
+    private Runnable onCompleteCallback;
+
+    private volatile boolean userStopped = false;
+
     private final SyncConfig config;
     private final DataAccessor<T> dataAccessor;
     private final Consumer<List<T>> batchConsumer;
@@ -53,6 +58,27 @@ public class BigDataSyncTool<T> {
 
         dataAccessor.init(config);
         this.executor = createExecutor();
+    }
+
+
+    public void startCallBackSync() {
+        try {
+            startSync();
+        } finally {
+            // 任务结束时触发回调
+            if (onCompleteCallback != null) {
+                onCompleteCallback.run();
+            }
+        }
+    }
+
+
+
+
+
+
+    public void setOnCompleteCallback(Runnable onCompleteCallback) {
+        this.onCompleteCallback = onCompleteCallback;
     }
 
     public void startSync() {
@@ -95,8 +121,6 @@ public class BigDataSyncTool<T> {
                     })
                     .get(config.getGlobalTimeout(), TimeUnit.SECONDS);
 
-            stats.setStatus(Status.COMPLETED);
-
         } catch (TimeoutException e) {
             stats.setStatus(Status.TIMEOUT);
             throw new SyncException("Sync timed out", e);
@@ -120,12 +144,18 @@ public class BigDataSyncTool<T> {
 
             long duration = System.currentTimeMillis() - startTime;
             stats.setDuration(duration);
+
+            // 只有在没有被用户手动停止的情况下才标记为 COMPLETED
+            if (!userStopped && stats.getStatus() == Status.RUNNING) {
+                stats.setStatus(Status.COMPLETED);
+            }
             printStats();
         }
     }
 
 
     public void stopSync() {
+        userStopped = true;
         executor.shutdown();
         stats.setStatus(Status.STOPPED);
         log.info("Sync is stoPing...... by user request");

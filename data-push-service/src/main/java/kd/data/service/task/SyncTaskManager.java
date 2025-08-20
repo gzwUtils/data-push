@@ -5,6 +5,7 @@ import kd.data.core.coordinator.DistributedCoordinator;
 import kd.data.core.core.BigDataSyncTool;
 import kd.data.core.customer.BatchConsumerService;
 import kd.data.core.model.SyncStats;
+import kd.data.core.model.enums.Status;
 import kd.data.core.send.DataAccessor;
 import kd.data.service.datasource.ConsumerDataAccessFactoryManager;
 import kd.data.service.datasource.DataAccessorFactoryManager;
@@ -59,9 +60,16 @@ public class SyncTaskManager {
                           Class<T> targetEntityClass) {
 
         String taskId = config.getTaskId();
-        if (runningTasks.containsKey(taskId)) {
+
+        SyncStats existingStats = taskConfigCache.getTaskStats(taskId);
+
+        if (isTaskExist(taskId)) {
             throw new TaskException("任务已在运行: " + taskId);
         }
+        if (existingStats != null && existingStats.getStatus() == Status.COMPLETED) {
+            throw new TaskException("任务已完成: " + taskId);
+        }
+
         try {
             // 1. 创建源数据源
             DataSource sourceDataSource = DataSourceManager.getJdbcDataSource(
@@ -94,8 +102,22 @@ public class SyncTaskManager {
                     coordinator
             );
 
+            // 注册任务结束回调（新增异常处理）
+            syncTool.setOnCompleteCallback(() -> {
+                try {
+                    BigDataSyncTool<?> removed = runningTasks.remove(taskId);
+                    if (removed != null) {
+                        SyncStats finalStats = removed.getStats();
+                        taskConfigCache.addTaskStats(taskId,finalStats);
+                        log.info("任务[{}]完成，统计信息已缓存", taskId);
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to remove task {}: {}", taskId, e.getMessage());
+                }
+            });
+
             // 6. 启动同步任务
-            new Thread(syncTool::startSync).start();
+            new Thread(syncTool::startCallBackSync).start();
             runningTasks.put(config.getTaskId(), syncTool);
             taskConfigCache.addTask(config);
         } catch (Exception e) {
@@ -125,15 +147,30 @@ public class SyncTaskManager {
      */
     public SyncStats getTaskStats(String taskId) {
         BigDataSyncTool<?> syncTool = runningTasks.get(taskId);
-        if (syncTool == null) {
-            throw new TaskException("任务未运行: " + taskId);
+        if (syncTool != null) {
+            return syncTool.getStats();
         }
-        return syncTool.getStats();
+        SyncStats taskStats = taskConfigCache.getTaskStats(taskId);
+        if (taskStats != null) {
+            return taskStats;
+        }
+        throw new TaskException("任务不存在: " + taskId);
     }
 
 
     @SuppressWarnings("unchecked")
     private static <T> Class<T> captureGeneric(Class<?> clazz) {
         return (Class<T>) clazz;
+    }
+
+    // 修改4：检查任务是否已存在（运行中或已完成）
+    private boolean isTaskExist(String taskId) {
+        return runningTasks.containsKey(taskId);
+    }
+
+    public void cleanExpiredTasks() {
+        // Caffeine会自动清理，此方法用于需要立即清理的场景
+        taskConfigCache.clear();
+        log.info("已完成任务缓存已清理");
     }
 }

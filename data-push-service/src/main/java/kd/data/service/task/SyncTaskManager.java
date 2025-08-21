@@ -10,6 +10,7 @@ import kd.data.core.send.DataAccessor;
 import kd.data.service.datasource.ConsumerDataAccessFactoryManager;
 import kd.data.service.datasource.DataAccessorFactoryManager;
 import kd.data.service.datasource.DataSourceManager;
+import kd.data.service.entity.EntityGenerator;
 import kd.data.service.exception.TaskException;
 import kd.data.service.model.SyncTaskConfig;
 import lombok.extern.slf4j.Slf4j;
@@ -42,9 +43,11 @@ public class SyncTaskManager {
 
 
 
-    public void startTask(SyncTaskConfig config,
-                          Class<?> sourceEntityClass,
-                          Class<?> targetEntityClass) {
+    public void startTask(SyncTaskConfig config) {
+
+        // 加载实体类
+        Class<?> sourceEntityClass = EntityGenerator.buildSource("kd.data.service.entity.SourceEntity",config);
+        Class<?> targetEntityClass = EntityGenerator.buildTarget("kd.data.service.entity.TargetEntity",config);
 
         doStartTask(config,
                 captureGeneric(sourceEntityClass),

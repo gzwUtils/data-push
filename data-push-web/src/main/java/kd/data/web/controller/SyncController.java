@@ -37,20 +37,15 @@ public class SyncController {
     @PostMapping("/start")
     public ApiResponse<String> startSync(@Validated @RequestBody TaskRequest request) {
         try {
-            // 加载实体类
-            Class<?> sourceEntityClass = Class.forName(request.getSourceEntityClassName());
-            Class<?> targetEntityClass = Class.forName(request.getTargetEntityClassName());
 
             // 转换配置
             SyncTaskConfig taskConfig = convertToTaskConfig(request);
 
             // 启动任务
-            syncTaskManager.startTask(taskConfig, sourceEntityClass, targetEntityClass);
+            syncTaskManager.startTask(taskConfig);
 
             return ApiResponse.success(SUCCESS);
-        } catch (ClassNotFoundException e) {
-            return ApiResponse.error("实体类未找到: " + e.getMessage());
-        } catch (TaskException e) {
+        }  catch (TaskException e) {
             return ApiResponse.error(e.getMessage());
         }
     }
@@ -82,7 +77,7 @@ public class SyncController {
     }
 
     /**
-     * 获取任务状态
+     * 获取任务列表
      */
     @GetMapping("/tasks")
     public ApiResponse<List<SyncTaskConfig>> getTasks() {

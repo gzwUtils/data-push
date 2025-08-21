@@ -300,12 +300,42 @@ public class BigDataSyncTool<T> {
     }
 
     private int calculateShardCount(long totalRecords) {
-        long recordsPerShard = config.getRecordsPerShard();
-        int minShards = config.getMinShards();
-        int maxShards = config.getMaxShards();
+        long recordsPerShard = Math.max(1, config.getRecordsPerShard());
 
-        int calculated = (int) Math.ceil((double) totalRecords / recordsPerShard);
-        return Math.max(minShards, Math.min(maxShards, calculated));
+        int minShards = Math.max(1, config.getMinShards());
+        int maxShards = Math.max(minShards, config.getMaxShards());
+
+        /* 1. 按记录量粗算 */
+        int recordBased = (int) Math.ceil((double) totalRecords / recordsPerShard);
+
+        /* 2. CPU 维度：至少给 1 倍核心，最多给 4 倍核心，避免大机爆炸 */
+        int cpuBased = Math.max(1, Runtime.getRuntime().availableProcessors() * 2);
+        cpuBased = Math.min(cpuBased, 256);        // 128C 机器也压到 256 以内
+
+        /* 3. 内存维度：留 50% 安全垫 */
+        int memoryBased = calculateMemoryBasedShards();
+        memoryBased = Math.max(1, memoryBased);    // 防 0
+
+        /* 4. 多层钳位：recordBased ↑，cpuBased ↑，memoryBased ↓ */
+        int shards = Math.max(recordBased, cpuBased);
+        shards = Math.min(shards, memoryBased);
+        return Math.max(minShards, Math.min(maxShards, shards));
+    }
+
+    private int calculateMemoryBasedShards() {
+        long maxHeap = Runtime.getRuntime().maxMemory();
+        long batchSize = Math.max(1, config.getBatchSize());
+
+        // 每条记录占内存 = 对象头(16) + 字段(平均 100)  ≈ 120 B
+        long bytesPerRecord = 120L;
+        long bytesPerShard  = batchSize * bytesPerRecord;
+
+        // 保守：每片占 2×内存（读缓冲 + 写缓冲 + 临时对象）
+        long neededPerShard = bytesPerShard * 2;
+
+        // 给堆外、GC、其他线程再留 50%
+        long upper = maxHeap / 2;
+        return (int) (upper / neededPerShard);
     }
 
     private ExecutorService createExecutor() {

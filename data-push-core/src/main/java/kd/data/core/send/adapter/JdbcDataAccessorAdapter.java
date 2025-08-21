@@ -16,7 +16,6 @@ import java.beans.PropertyDescriptor;
 import java.lang.invoke.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,6 +41,7 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
     private final Map<String, String> columnMappings = new HashMap<>();
 
     private final RowMapper<T> rowMapper;
+    private final ClassLoader entityClassLoader;
 
     public JdbcDataAccessorAdapter(DataSource dataSource, Class<T> entityType,
                                    DatabaseDialect dialect, SyncConfig config) {
@@ -50,14 +50,11 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
         this.entityType = entityType;
         this.dialect = dialect;
         this.config = config;
+        this.entityClassLoader = entityType.getClassLoader();
         initEntityMapping();
 
         // 放到这里，entityType 已确定赋值
-        this.rowMapper = (rs, rowNum) -> {
-            T instance = newInstance(entityType);
-            mapRow(rs, instance);
-            return instance;
-        };
+        this.rowMapper = (rs, rowNum) -> mapRow(rs);
     }
 
     @Override
@@ -145,14 +142,22 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
 
 
     /* ---------- 4. 缓存 <字段名 -> Setter> ---------- */
-    private static final Map<Class<?>, Map<String, BiConsumer<Object, Object>>> CACHE = new ConcurrentHashMap<>();
+    private  final Map<Class<?>, Map<String, BiConsumer<Object, Object>>> classMapMap = new ConcurrentHashMap<>();
 
-    private void mapRow(ResultSet rs, T instance) {
-        Map<String, BiConsumer<Object, Object>> setters =
-                CACHE.computeIfAbsent(entityType, this::buildSetterMap);
+    private T mapRow(ResultSet rs) {
+        // 保存当前线程的类加载器
+        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
 
-        ResultSetMetaData meta;
         try {
+            // 切换到实体类的类加载器
+            Thread.currentThread().setContextClassLoader(entityClassLoader);
+
+            Map<String, BiConsumer<Object, Object>> setters =
+                    classMapMap.computeIfAbsent(entityType, this::buildSetterMap);
+
+            ResultSetMetaData meta;
+            T instance = entityType.newInstance();
+
             meta = rs.getMetaData();
             for (int i = 1; i <= meta.getColumnCount(); i++) {
                 String col = meta.getColumnLabel(i);   // 优先 label，兼容 AS
@@ -161,55 +166,48 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
                     setter.accept(instance, rs.getObject(i));
                 }
             }
-        } catch (SQLException e) {
+            return instance;
+        } catch (Exception e) {
             throw new SyncException("Row mapping failed", e);
+        } finally {
+            // 恢复原来的类加载器
+            Thread.currentThread().setContextClassLoader(originalClassLoader);
         }
     }
-
-    /* 5. 通过 LambdaMetaFactory 生成 setter，比 Field.set 快 3~5 倍 */
-
 
     private Map<String, BiConsumer<Object, Object>> buildSetterMap(Class<?> clazz) {
         Map<String, BiConsumer<Object, Object>> map = new HashMap<>();
 
-        /* 遍历所有字段，按列名 -> setter 函数 建立映射 */
         for (Field field : clazz.getDeclaredFields()) {
-
-            /* 1. 计算列名（支持 columnMappings） */
             String columnName = Optional.ofNullable(columnMappings.get(field.getName()))
                     .orElse(field.getName())
                     .toLowerCase();
 
-            /* 2. 如果字段本身就是 public，直接绑定字段赋值 */
-            if (Modifier.isPublic(field.getModifiers())) {
-                try {
-                    MethodHandle handle = MethodHandles.lookup().unreflectSetter(field);
-                    setter(map, field, columnName, handle);
-                    continue;   // 已经处理完，进入下一个字段
-                } catch (Throwable e) {
-                    // 继续尝试 setter 方法
-                }
-            }
-
-            /* 3. 否则，通过 public setter 方法注入 */
-            try {
-                PropertyDescriptor pd = new PropertyDescriptor(field.getName(), clazz);
-                Method setterMethod = pd.getWriteMethod();   // 必须是 public
-                if (setterMethod == null) {
-                    throw new IllegalStateException("No public setter for " + field.getName());
-                }
-
-                MethodHandle handle = MethodHandles.lookup().unreflect(setterMethod);
-                setter(map, field, columnName, handle);
-
-            } catch (Throwable e) {
-                /* 4. 既没有 public 字段，也没有 public setter，直接报错 */
-                throw new SyncException(
-                        "Cannot create setter for field '" + field.getName()
-                                + "'. Please make the field public or provide a public setter.", e);
-            }
+            // 使用传统的反射方式创建setter
+            BiConsumer<Object, Object> setter = createReflectionSetter(field);
+            map.put(columnName, setter);
         }
         return map;
+    }
+
+    private BiConsumer<Object, Object> createReflectionSetter(Field field) {
+        return (instance, value) -> {
+            try {
+                ReflectionUtils.setFieldValue(instance,field.getName(),value);
+            } catch (Exception e) {
+                try {
+                    PropertyDescriptor pd = new PropertyDescriptor(field.getName(), field.getDeclaringClass());
+                    Method setter = pd.getWriteMethod();
+                    if (setter != null) {
+                        setter.invoke(instance, value);
+                    } else {
+                        throw new SyncException("No setter available for field: " + field.getName(), e);
+                    }
+                } catch (Exception ex) {
+                    throw new SyncException("Failed to set field value: " + field.getName(), ex);
+                }
+            }
+        };
     }
 
     @SuppressWarnings("unchecked")

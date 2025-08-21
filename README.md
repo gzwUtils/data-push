@@ -93,7 +93,7 @@ Maven 3.8+：项目构建工具
 
 <h2> 3、接口文档 </h2>
 
-[接口文档地址(https://s.apifox.cn/f1130703-cbcf-41af-87c4-20c9ce73e4f7/api-327751833)]
+[接口文档地址(https://s.apifox.cn/6ee005db-1335-4dba-9eec-46f0784b5f0a/api-327564363)]
 <h1>未来路线图</h1>
 <h2>短期计划 (2025 Q4)</h2>
 

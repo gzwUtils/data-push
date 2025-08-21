@@ -120,6 +120,11 @@ public class PersistenceAutoTrigger {
                     .desConfig(task.getDestinationConfig())
                     .sourceConfig(task.getSourceConfig())
                     .sourceType(task.getSourceType())
+                    .destinationType(task.getDestinationType())
+                    .syncConfig(task.getSyncConfig())
+                    .sourceFieldName(task.getSourceFieldName())
+                    .targetFieldName(task.getTargetFieldName())
+                    .fields(task.getFields())
                     .build();
 
             ProcessContext context = ProcessContext.builder()

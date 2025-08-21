@@ -1,11 +1,13 @@
 package kd.data.web.vo;
 
 import kd.data.core.model.SyncConfig;
+import kd.data.service.entity.FieldMapping;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,9 +39,22 @@ public class TaskRequest {
 
     private SyncConfig syncConfig;
 
-    @NotBlank(message = "源任务实体类映射不能为空")
-    private String sourceEntityClassName; // 源实体类全名
+    /**
+     * 源名称
+     */
 
-    @NotBlank(message = "目标实体类映射不能为空")
-    private String targetEntityClassName; // 目标实体类全名
+    private String sourceFieldName;
+
+
+    /**
+     * 目标名称
+     */
+
+    private String targetFieldName;
+
+    /**
+     * 字段映射
+     */
+
+    private List<FieldMapping> fields;
 }

@@ -14,7 +14,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,7 +30,6 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
     // 配置参数
     private static final long MAX_FILE_SIZE = 100L * 1024 * 1024; // 100MB
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final DateTimeFormatter FILE_TIME_FORMAT = DateTimeFormatter.ofPattern("HHmmss");
 
     // 运行时状态
     private final Path baseStoragePath;
@@ -122,14 +120,13 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
         // 准备新文件路径
         LocalDate today = LocalDate.now();
         String dateDir = today.format(DATE_FORMAT);
-        String timestamp = LocalDateTime.now().format(FILE_TIME_FORMAT);
 
         Path datePath = baseStoragePath.resolve(dateDir);
         ensureDirectoryExists(datePath);
 
         // 生成新文件名
-        String filename = String.format("%s_%s_%03d.log",
-                dateDir, timestamp, fileSequence++);
+        String filename = String.format("%s_%03d.log",
+                dateDir, fileSequence++);
 
         currentFilePath = datePath.resolve(filename);
         currentDate = today;

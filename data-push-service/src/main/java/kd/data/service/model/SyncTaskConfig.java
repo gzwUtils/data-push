@@ -1,9 +1,11 @@
 package kd.data.service.model;
 
 import kd.data.core.model.SyncConfig;
+import kd.data.service.entity.FieldMapping;
 import lombok.Data;
 
 import javax.validation.constraints.NotBlank;
+import java.util.List;
 import java.util.Map;
 /**
  * @author gaozw
@@ -26,10 +28,21 @@ public class SyncTaskConfig {
     private Map<String, Object> destinationConfig;
     /**核心配置*/
     private SyncConfig syncConfig;
-    /**源实体类全名*/
-    private String sourceEntityClassName;
-    /**目标实体类全名*/
-    private String targetEntityClassName;
+
+    /**
+     * 源名称
+     */
+    private String sourceFieldName;
+    /**
+     * 目标名称
+     */
+    private String targetFieldName;
+
+    /**
+     * 字段映射
+     */
+
+    private List<FieldMapping> fields;
 
     /**是否增量同步*/
     private boolean incremental;

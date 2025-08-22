@@ -309,17 +309,19 @@ public class BigDataSyncTool<T> {
         int recordBased = (int) Math.ceil((double) totalRecords / recordsPerShard);
 
         /* 2. CPU 维度：至少给 1 倍核心，最多给 4 倍核心，避免大机爆炸 */
-        int cpuBased = Math.max(1, Runtime.getRuntime().availableProcessors() * 2);
-        cpuBased = Math.min(cpuBased, 256);        // 128C 机器也压到 256 以内
+        int cpuBased = Math.min(
+                Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() * 2, 256)),
+                maxShards);
 
         /* 3. 内存维度：留 50% 安全垫 */
-        int memoryBased = calculateMemoryBasedShards();
-        memoryBased = Math.max(1, memoryBased);    // 防 0
+        int  memoryBased = Math.min(
+                Math.max(1, calculateMemoryBasedShards()),
+                maxShards);
 
         /* 4. 多层钳位：recordBased ↑，cpuBased ↑，memoryBased ↓ */
         int shards = Math.max(recordBased, cpuBased);
         shards = Math.min(shards, memoryBased);
-        return Math.max(minShards, Math.min(maxShards, shards));
+        return Math.max(minShards, shards);
     }
 
     private int calculateMemoryBasedShards() {

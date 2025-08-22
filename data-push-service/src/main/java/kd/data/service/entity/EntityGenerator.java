@@ -10,12 +10,17 @@ import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.FieldAccessor;
-
+import org.springframework.data.elasticsearch.annotations.DateFormat;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
@@ -95,6 +100,12 @@ public class EntityGenerator {
             case ELASTICSEARCH:
                 builder = builder.annotateType(AnnotationDescription.Builder.ofType(EsIndex.class)
                         .define("value", targetName).build());
+
+                builder = builder.annotateType(AnnotationDescription.Builder.ofType(
+                                org.springframework.data.elasticsearch.annotations.Document.class)
+                        .define("indexName", targetName)
+                        .define("createIndex", false)
+                        .build());
                 break;
             case KAFKA:
                 builder = builder.annotateType(AnnotationDescription.Builder.ofType(KafkaTopic.class)
@@ -105,11 +116,25 @@ public class EntityGenerator {
         }
 
         for (FieldMapping f : req.getFields()) {
-            builder = builder.defineField(f.getJavaField(), toClass(f.getTargetType()), Modifier.PRIVATE)
-                    .annotateField(AnnotationDescription.Builder.ofType(ConsumerField.class)
+            // 收集所有需要添加的注解
+            List<AnnotationDescription> annotations = new ArrayList<>();
+            // 添加 ConsumerField 注解
+            annotations.add(AnnotationDescription.Builder.ofType(ConsumerField.class)
                             .define("value", f.getTargetField())
                             .define("role", getFieldRoleFromString(f.getRole()))
                             .build());
+            if (targetType == TargetEnums.ELASTICSEARCH) {
+                annotations.add(createElasticsearchFieldAnnotation(f, toClass(f.getTargetType())));
+            }
+            // 定义字段并添加所有注解
+            DynamicType.Builder.FieldDefinition.Optional.Valuable<Object> fieldBuilder = builder.defineField(f.getJavaField(), toClass(f.getTargetType()), Modifier.PRIVATE);
+
+            // 添加所有注解到字段
+            for (AnnotationDescription annotation : annotations) {
+                fieldBuilder.annotateField(annotation);
+            }
+
+            builder = fieldBuilder;
 
             builder = addGetterSetter(builder, f.getJavaField(), toClass(f.getTargetType()));
         }
@@ -199,5 +224,43 @@ public class EntityGenerator {
             throw new IllegalArgumentException("Invalid TargetType: '" + targetTypeStr +
                     "'. Valid values are: " + Arrays.toString(TargetEnums.values()));
         }
+    }
+
+    // 为 Elasticsearch 字段添加注解
+    private static AnnotationDescription createElasticsearchFieldAnnotation(
+            FieldMapping fieldMapping, Class<?> fieldClass) {
+
+        // 创建 @Field 注解构建器
+        AnnotationDescription.Builder fieldAnnotationBuilder = AnnotationDescription.Builder
+                .ofType(Field.class)
+                .define("name", fieldMapping.getTargetField());
+
+        // 根据字段类型设置不同的 FieldType
+        if (fieldClass == String.class) {
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Text);
+            // 如果是 ID 字段，不需要分词
+            if (fieldMapping.getRole() != null &&
+                    fieldMapping.getRole().equalsIgnoreCase("id")) {
+                fieldAnnotationBuilder = fieldAnnotationBuilder.define("index", false);
+            }
+        } else if (fieldClass == Long.class || fieldClass == BigInteger.class) {
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Long);
+        } else if (fieldClass == Integer.class) {
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Integer);
+        } else if (fieldClass == Double.class) {
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Double);
+        } else if (fieldClass == BigDecimal.class) {
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Double);
+        } else if (fieldClass == LocalDate.class || fieldClass == LocalDateTime.class) {
+            fieldAnnotationBuilder = fieldAnnotationBuilder
+                    .define("type", FieldType.Date)
+                    .defineEnumerationArray("format",
+                            DateFormat.class,DateFormat.date_hour_minute_second_millis);
+        } else {
+            // 默认类型
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Auto);
+        }
+
+        return fieldAnnotationBuilder.build();
     }
 }

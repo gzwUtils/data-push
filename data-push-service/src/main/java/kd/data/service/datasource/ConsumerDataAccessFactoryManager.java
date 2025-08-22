@@ -8,10 +8,14 @@ import kd.data.core.customer.target.impl.es.ElasticsearchWriter;
 import kd.data.core.customer.target.impl.es.EsTargetConnector;
 import kd.data.core.customer.target.impl.jdbc.JdbcBatchWriter;
 import kd.data.core.customer.target.impl.jdbc.JdbcTargetConnector;
+import kd.data.core.customer.target.impl.kafka.KafkaTargetConnector;
+import kd.data.core.customer.target.impl.kafka.KafkaTargetWriter;
+import kd.data.core.customer.target.impl.kafka.properties.KafkaProperties;
 import kd.data.core.customer.target.targetenums.TargetEnums;
 import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * @author gaozw
@@ -87,5 +91,12 @@ public class ConsumerDataAccessFactoryManager {
             Map<String, Object> config) {
 
         // 创建Kafka连接器
+        Properties cfg = new Properties();
+        cfg.put(KafkaProperties.BOOTSTRAP_SERVERS, config.get(KafkaProperties.BOOTSTRAP_SERVERS));
+        cfg.put(KafkaProperties.PRODUCER_ACKS, config.get(KafkaProperties.PRODUCER_ACKS));
+        KafkaTargetConnector kafkaTargetConnector = new KafkaTargetConnector(cfg);
+        KafkaTargetWriter<T> writer = new KafkaTargetWriter<>();
+        consumer.registerConnector(TargetEnums.KAFKA.name(), kafkaTargetConnector);
+        consumer.registerWriter(TargetEnums.KAFKA.name(), writer);
     }
 }

@@ -23,6 +23,7 @@ public class ConsumerMetadata {
     private String tableName;
     private String indexName;
     private String topicName;
+    private String keyField;
     private final List<ConsumerFieldModel> fields = new ArrayList<>();
 
     public ConsumerMetadata(Class<?> entityType) {
@@ -65,6 +66,9 @@ public class ConsumerMetadata {
                         annotation.value(),
                         annotation.role().name()
                 ));
+                if (annotation.role() == ConsumerField.FieldRole.KEY) {
+                    this.keyField = field.getName();
+                }
             }
         }
     }

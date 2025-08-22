@@ -23,6 +23,8 @@ public @interface ConsumerField {
         ID,         // 主键/文档ID
         DATA,       // 普通数据字段
         TIMESTAMP,  // 时间戳字段
-        VERSION     // 版本字段
+        VERSION,     // 版本字段
+
+        KEY        // KAFKA key
     }
 }

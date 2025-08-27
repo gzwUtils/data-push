@@ -127,14 +127,12 @@ public class EntityGenerator {
                 annotations.add(createElasticsearchFieldAnnotation(f, toClass(f.getTargetType())));
             }
             // 定义字段并添加所有注解
-            DynamicType.Builder.FieldDefinition.Optional.Valuable<Object> fieldBuilder = builder.defineField(f.getJavaField(), toClass(f.getTargetType()), Modifier.PRIVATE);
-
-            // 添加所有注解到字段
+            DynamicType.Builder<Object> tempBuilder = builder;
             for (AnnotationDescription annotation : annotations) {
-                fieldBuilder.annotateField(annotation);
+                tempBuilder = tempBuilder.defineField(f.getJavaField(), toClass(f.getTargetType()), Modifier.PRIVATE)
+                        .annotateField(annotation);
             }
-
-            builder = fieldBuilder;
+            builder = tempBuilder;
 
             builder = addGetterSetter(builder, f.getJavaField(), toClass(f.getTargetType()));
         }

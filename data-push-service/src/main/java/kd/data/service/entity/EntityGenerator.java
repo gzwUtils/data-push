@@ -21,8 +21,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 /**
  * 字段解析生成 - 优化版本，添加类缓存
@@ -35,18 +33,13 @@ public class EntityGenerator {
 
     private EntityGenerator(){}
 
-    // 缓存生成的类
-    private static final Map<String, Class<?>> GENERATED_CLASSES = new ConcurrentHashMap<>();
+
 
     // 缓存类加载器
     private static final ClassLoader BASE_CLASS_LOADER = EntityGenerator.class.getClassLoader();
 
     // 生成 Source 实体
     public static Class<?> buildSource(String className, SyncTaskConfig req) {
-        // 检查缓存
-        if (GENERATED_CLASSES.containsKey(className)) {
-            return GENERATED_CLASSES.get(className);
-        }
 
         DynamicType.Builder<Object> builder = new ByteBuddy()
                 .subclass(Object.class)
@@ -68,17 +61,11 @@ public class EntityGenerator {
                 .load(BASE_CLASS_LOADER, ClassLoadingStrategy.Default.WRAPPER)
                 .getLoaded();
 
-        // 缓存生成的类
-        GENERATED_CLASSES.put(className, generatedClass);
         return generatedClass;
     }
 
     // 生成 Target 实体
     public static Class<?> buildTarget(String className, SyncTaskConfig req) {
-        // 检查缓存
-        if (GENERATED_CLASSES.containsKey(className)) {
-            return GENERATED_CLASSES.get(className);
-        }
 
         // 获取目标类型
         TargetEnums targetType = getTargetTypeFromString(req.getDestinationType());
@@ -118,13 +105,15 @@ public class EntityGenerator {
         for (FieldMapping f : req.getFields()) {
             // 收集所有需要添加的注解
             List<AnnotationDescription> annotations = new ArrayList<>();
-            // 添加 ConsumerField 注解
-            annotations.add(AnnotationDescription.Builder.ofType(ConsumerField.class)
-                            .define("value", f.getTargetField())
-                            .define("role", getFieldRoleFromString(f.getRole()))
-                            .build());
+
             if (targetType == TargetEnums.ELASTICSEARCH) {
                 annotations.add(createElasticsearchFieldAnnotation(f, toClass(f.getTargetType())));
+            } else {
+                // 添加 ConsumerField 注解
+                annotations.add(AnnotationDescription.Builder.ofType(ConsumerField.class)
+                        .define("value", f.getTargetField())
+                        .define("role", getFieldRoleFromString(f.getRole()))
+                        .build());
             }
             // 定义字段并添加所有注解
             DynamicType.Builder<Object> tempBuilder = builder;
@@ -141,19 +130,12 @@ public class EntityGenerator {
                 .load(BASE_CLASS_LOADER, ClassLoadingStrategy.Default.WRAPPER)
                 .getLoaded();
 
-        // 缓存生成的类
-        GENERATED_CLASSES.put(className, generatedClass);
         return generatedClass;
     }
 
     // 获取类加载器
     public static ClassLoader getClassLoader() {
         return BASE_CLASS_LOADER;
-    }
-
-    // 获取缓存的类
-    public static Class<?> getCachedClass(String className) {
-        return GENERATED_CLASSES.get(className);
     }
 
     private static Class<?> toClass(String type) {

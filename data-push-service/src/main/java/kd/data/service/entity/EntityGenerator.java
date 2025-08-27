@@ -10,6 +10,7 @@ import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.FieldAccessor;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import java.lang.reflect.Modifier;
@@ -77,7 +78,18 @@ public class EntityGenerator {
                         .define("value", targetType).build());
 
         // 根据目标类型添加相应的表/索引/主题注解
-        String targetName = req.getTargetFieldName();
+        builder = getTargetName(targetType, builder, req.getTargetFieldName());
+        //构建字段注解
+        builder = buildFiledMapping(req, targetType, builder);
+
+        Class<?> generatedClass = builder.make()
+                .load(BASE_CLASS_LOADER, ClassLoadingStrategy.Default.WRAPPER)
+                .getLoaded();
+
+        return generatedClass;
+    }
+
+    private static DynamicType.Builder<Object> getTargetName(TargetEnums targetType, DynamicType.Builder<Object> builder, String targetName) {
         switch (targetType) {
             case JDBC:
                 builder = builder.annotateType(AnnotationDescription.Builder.ofType(CustomerTableName.class)
@@ -100,14 +112,20 @@ public class EntityGenerator {
             default:
                 throw new IllegalArgumentException("Unsupported target type: " + targetType);
         }
+        return builder;
+    }
 
+    private static DynamicType.Builder<Object> buildFiledMapping(SyncTaskConfig req, TargetEnums targetType, DynamicType.Builder<Object> builder) {
         for (FieldMapping f : req.getFields()) {
+            Class<?> fieldClass;
             // 收集所有需要添加的注解
             List<AnnotationDescription> annotations = new ArrayList<>();
 
             if (targetType == TargetEnums.ELASTICSEARCH) {
+                fieldClass = toClass(f.getSourceType());
                 annotations.add(createElasticsearchFieldAnnotation(f, f.getTargetType()));
             } else {
+                fieldClass = toClass(f.getTargetType());
                 // 添加 ConsumerField 注解
                 annotations.add(AnnotationDescription.Builder.ofType(ConsumerField.class)
                         .define("value", f.getTargetField())
@@ -117,19 +135,14 @@ public class EntityGenerator {
             // 定义字段并添加所有注解
             DynamicType.Builder<Object> tempBuilder = builder;
             for (AnnotationDescription annotation : annotations) {
-                tempBuilder = tempBuilder.defineField(f.getJavaField(), toClass(f.getTargetType()), Modifier.PRIVATE)
+                tempBuilder = tempBuilder.defineField(f.getJavaField(), fieldClass, Modifier.PRIVATE)
                         .annotateField(annotation);
             }
             builder = tempBuilder;
 
-            builder = addGetterSetter(builder, f.getJavaField(), toClass(f.getTargetType()));
+            builder = addGetterSetter(builder, f.getJavaField(), fieldClass);
         }
-
-        Class<?> generatedClass = builder.make()
-                .load(BASE_CLASS_LOADER, ClassLoadingStrategy.Default.WRAPPER)
-                .getLoaded();
-
-        return generatedClass;
+        return builder;
     }
 
     // 获取类加载器
@@ -228,7 +241,8 @@ public class EntityGenerator {
         // 为特定类型添加额外属性
         if (fieldType == FieldType.Date) {
             // 添加日期格式
-            fieldAnnotationBuilder = fieldAnnotationBuilder.define("format", "yyyy-MM-dd HH:mm:ss||epoch_millis");
+            fieldAnnotationBuilder = fieldAnnotationBuilder.defineEnumerationArray("format",
+                    DateFormat.class,DateFormat.date_hour_minute_second_millis);
         } else if (fieldType == FieldType.Text) {
             // 添加分析器
             fieldAnnotationBuilder = fieldAnnotationBuilder.define("analyzer", "ik_max_word");

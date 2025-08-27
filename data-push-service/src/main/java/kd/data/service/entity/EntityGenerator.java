@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -152,6 +153,8 @@ public class EntityGenerator {
                 return LocalDate.class;
             case "LocalDateTime":
                 return LocalDateTime.class;
+            case "Date":
+                return Date.class;
             default:
                 throw new IllegalArgumentException("Unsupported type: " + type);
         }

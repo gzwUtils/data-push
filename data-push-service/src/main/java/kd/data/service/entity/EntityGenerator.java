@@ -10,12 +10,10 @@ import net.bytebuddy.description.annotation.AnnotationDescription;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.FieldAccessor;
-import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -107,7 +105,7 @@ public class EntityGenerator {
             List<AnnotationDescription> annotations = new ArrayList<>();
 
             if (targetType == TargetEnums.ELASTICSEARCH) {
-                annotations.add(createElasticsearchFieldAnnotation(f, toClass(f.getTargetType())));
+                annotations.add(createElasticsearchFieldAnnotation(f, f.getTargetType()));
             } else {
                 // 添加 ConsumerField 注解
                 annotations.add(AnnotationDescription.Builder.ofType(ConsumerField.class)
@@ -208,37 +206,29 @@ public class EntityGenerator {
 
     // 为 Elasticsearch 字段添加注解
     private static AnnotationDescription createElasticsearchFieldAnnotation(
-            FieldMapping fieldMapping, Class<?> fieldClass) {
+            FieldMapping fieldMapping, String type) {
+
+        FieldType fieldType = FieldType.Auto;
+        for (FieldType ft : FieldType.values()) {
+            if (ft.getMappedName().equalsIgnoreCase(type)) {
+                fieldType = ft;
+                break;
+            }
+        }
 
         // 创建 @Field 注解构建器
         AnnotationDescription.Builder fieldAnnotationBuilder = AnnotationDescription.Builder
                 .ofType(Field.class)
-                .define("name", fieldMapping.getTargetField());
+                .define("name", fieldMapping.getTargetField())
+                .define("type", fieldType);
 
-        // 根据字段类型设置不同的 FieldType
-        if (fieldClass == String.class) {
-            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Text);
-            // 如果是 ID 字段，不需要分词
-            if (fieldMapping.getRole() != null &&
-                    fieldMapping.getRole().equalsIgnoreCase("id")) {
-                fieldAnnotationBuilder = fieldAnnotationBuilder.define("index", false);
-            }
-        } else if (fieldClass == Long.class || fieldClass == BigInteger.class) {
-            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Long);
-        } else if (fieldClass == Integer.class) {
-            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Integer);
-        } else if (fieldClass == Double.class) {
-            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Double);
-        } else if (fieldClass == BigDecimal.class) {
-            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Double);
-        } else if (fieldClass == LocalDate.class || fieldClass == LocalDateTime.class) {
-            fieldAnnotationBuilder = fieldAnnotationBuilder
-                    .define("type", FieldType.Date)
-                    .defineEnumerationArray("format",
-                            DateFormat.class,DateFormat.date_hour_minute_second_millis);
-        } else {
-            // 默认类型
-            fieldAnnotationBuilder = fieldAnnotationBuilder.define("type", FieldType.Auto);
+        // 为特定类型添加额外属性
+        if (fieldType == FieldType.Date) {
+            // 添加日期格式
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("format", "yyyy-MM-dd HH:mm:ss||epoch_millis");
+        } else if (fieldType == FieldType.Text) {
+            // 添加分析器
+            fieldAnnotationBuilder = fieldAnnotationBuilder.define("analyzer", "ik_max_word");
         }
 
         return fieldAnnotationBuilder.build();

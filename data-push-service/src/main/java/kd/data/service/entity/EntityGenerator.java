@@ -168,6 +168,10 @@ public class EntityGenerator {
                 return LocalDateTime.class;
             case "Date":
                 return Date.class;
+            case "Boolean":
+                return Boolean.class;
+            case "Byte":
+                return Byte.class;
             default:
                 throw new IllegalArgumentException("Unsupported type: " + type);
         }
@@ -242,7 +246,7 @@ public class EntityGenerator {
         if (fieldType == FieldType.Date) {
             // 添加日期格式
             fieldAnnotationBuilder = fieldAnnotationBuilder.defineEnumerationArray("format",
-                    DateFormat.class,DateFormat.date_hour_minute_second_millis);
+                    DateFormat.class,DateFormat.date_hour_minute_second,DateFormat.date_hour_minute_second_millis);
         } else if (fieldType == FieldType.Text) {
             // 添加分析器
             fieldAnnotationBuilder = fieldAnnotationBuilder.define("analyzer", "ik_max_word");

@@ -2,9 +2,12 @@ package kd.data.web.exception;
 import kd.data.service.exception.TaskException;
 import kd.data.web.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.support.DefaultMessageSourceResolvable;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import javax.servlet.http.HttpServletRequest;
+import java.util.Objects;
 
 
 /**
@@ -14,6 +17,21 @@ import javax.servlet.http.HttpServletRequest;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+
+    /* 1. 参数校验失败 → 返回第一条具体信息 */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ApiResponse<Void> handleValid(MethodArgumentNotValidException ex, HttpServletRequest request) {
+        String first = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(DefaultMessageSourceResolvable::getDefaultMessage)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse("参数错误");
+        sendErrorInfo(ex, request);
+        return ApiResponse.error(first);
+    }
 
     @ExceptionHandler(Exception.class)
     public ApiResponse<Void> handleException(Exception ex, HttpServletRequest request) {

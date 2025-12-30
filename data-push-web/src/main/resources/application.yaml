@@ -6,7 +6,7 @@ server:
 #持久化配置
 persistence:
   enabled: true
-  mode: file
+  mode: jdbc
 
 #日志
 logging:

@@ -6,6 +6,7 @@ import kd.data.core.exception.SyncException;
 import kd.data.core.model.SyncConfig;
 import kd.data.core.model.SyncStats;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.validation.constraints.NotNull;
@@ -32,6 +33,7 @@ import java.util.function.Consumer;
 public class BigDataSyncTool<T> {
 
 
+    @Setter
     private Runnable onCompleteCallback;
 
     private volatile boolean userStopped = false;
@@ -72,14 +74,6 @@ public class BigDataSyncTool<T> {
         }
     }
 
-
-
-
-
-
-    public void setOnCompleteCallback(Runnable onCompleteCallback) {
-        this.onCompleteCallback = onCompleteCallback;
-    }
 
     public void startSync() {
 

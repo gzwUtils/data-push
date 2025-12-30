@@ -34,7 +34,7 @@ public class SyncConfig implements Serializable {
     private long recordsPerShard = 1_000_000L;
 
     // 超时配置
-    private int lockTimeout = 300;
+    private int lockTimeout = 1000;
     private int lockRenewInterval = 30; // 新增锁续期间隔
     private int shardTimeout = 3600;
     private int globalTimeout = 24 * 3600;

@@ -13,9 +13,7 @@ import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.util.StringUtils;
 import javax.sql.DataSource;
 import java.beans.PropertyDescriptor;
-import java.lang.invoke.*;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
+import java.lang.reflect.*;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +25,7 @@ import java.util.function.BiConsumer;
  */
 @SuppressWarnings("unused")
 @Slf4j
-public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
+public class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
 
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
@@ -40,8 +38,15 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
     private String checkpointColumn;
     private final Map<String, String> columnMappings = new HashMap<>();
 
+    // 缓存字段和setter方法
+    private final Map<String, Field> fieldCache = new HashMap<>();
+    private final Map<String, Method> setterCache = new HashMap<>();
+
     private final RowMapper<T> rowMapper;
     private final ClassLoader entityClassLoader;
+
+    // 调试标志
+    private final boolean debugMode ;
 
     public JdbcDataAccessorAdapter(DataSource dataSource, Class<T> entityType,
                                    DatabaseDialect dialect, SyncConfig config) {
@@ -51,24 +56,46 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
         this.dialect = dialect;
         this.config = config;
         this.entityClassLoader = entityType.getClassLoader();
-        initEntityMapping();
 
-        // 放到这里，entityType 已确定赋值
+        // 启用调试模式
+        this.debugMode = log.isDebugEnabled();
+
+        initEntityMapping();
+        initFieldAndSetterCache();
+
         this.rowMapper = (rs, rowNum) -> mapRow(rs);
+    }
+
+    /**
+     * 初始化字段和setter方法缓存
+     */
+    private void initFieldAndSetterCache() {
+        for (Field field : entityType.getDeclaredFields()) {
+            String fieldName = field.getName();
+            fieldCache.put(fieldName, field);
+
+            try {
+                PropertyDescriptor pd = new PropertyDescriptor(fieldName, entityType);
+                Method setter = pd.getWriteMethod();
+                if (setter != null) {
+                    setterCache.put(fieldName, setter);
+                }
+            } catch (Exception e) {
+                log.debug("No setter found for field: {}", fieldName);
+            }
+        }
     }
 
     @Override
     public void init(SyncConfig config) {
         this.config = config;
         jdbcTemplate.setFetchSize(config.getBatchSize());
-        jdbcTemplate.setMaxRows(0); // 无限制
+        jdbcTemplate.setMaxRows(0);
 
-        // 构建查询语句
         buildQueries();
     }
 
     private void initEntityMapping() {
-        // 使用反射获取实体类字段与数据库列的映射
         Field[] fields = entityType.getDeclaredFields();
         for (Field field : fields) {
             ColumnMapping mapping = field.getAnnotation(ColumnMapping.class);
@@ -77,12 +104,15 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
                     field.getName();
             columnMappings.put(field.getName(), columnName);
 
-            // 检查是否为检查点字段
             if (mapping != null && mapping.isCheckpoint()) {
                 if (checkpointColumn != null) {
                     throw new SyncException("Multiple checkpoint fields in: " + entityType.getName());
                 }
                 checkpointColumn = columnName;
+                if (debugMode) {
+                    log.debug("Checkpoint column detected: {} -> {} (field type: {})",
+                            field.getName(), columnName, field.getType().getName());
+                }
             }
         }
 
@@ -94,11 +124,13 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
     private void buildQueries() {
         String tableName = getTableName();
 
-        // 构建计数查询
         countQuery = "SELECT COUNT(*) FROM " + tableName;
-
-        // 构建基础游标查询
         baseCursorQuery = "SELECT * FROM " + tableName;
+
+        if (debugMode) {
+            log.debug("Built queries - Count: {}, Base: {}, Checkpoint: {}",
+                    countQuery, baseCursorQuery, checkpointColumn);
+        }
     }
 
     private String getTableName() {
@@ -130,109 +162,132 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
 
         sql.append(" ORDER BY ").append(checkpointColumn);
 
-        // 如果 StreamingJdbcCursor 只接受 Map，就把顺序值再塞进 Map
         Map<String, Object> params = new LinkedHashMap<>();
         params.put("p1", totalShards);
         params.put("p2", shardId);
         if (StringUtils.hasText(checkpoint)){
             params.put("p3", Long.valueOf(checkpoint.trim()));
         }
+
+        if (debugMode) {
+            log.debug("Opening cursor for shard {}/{}: {}", shardId, totalShards, sql);
+        }
+
         return new StreamingJdbcCursor<>(dataSource, sql.toString(), params, rowMapper, dialect);
     }
 
-
-    /* ---------- 4. 缓存 <字段名 -> Setter> ---------- */
-    private  final Map<Class<?>, Map<String, BiConsumer<Object, Object>>> classMapMap = new ConcurrentHashMap<>();
+    private final Map<Class<?>, Map<String, BiConsumer<Object, Object>>> classMapMap = new ConcurrentHashMap<>();
 
     private T mapRow(ResultSet rs) {
-        // 保存当前线程的类加载器
         ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
 
         try {
-            // 切换到实体类的类加载器
             Thread.currentThread().setContextClassLoader(entityClassLoader);
 
             Map<String, BiConsumer<Object, Object>> setters =
                     classMapMap.computeIfAbsent(entityType, this::buildSetterMap);
-
             ResultSetMetaData meta;
-            T instance = entityType.newInstance();
+            T instance = createEntityInstance();
 
             meta = rs.getMetaData();
             for (int i = 1; i <= meta.getColumnCount(); i++) {
-                String col = meta.getColumnLabel(i);   // 优先 label，兼容 AS
-                BiConsumer<Object, Object> setter = setters.get(col.toLowerCase());
+                String col = meta.getColumnLabel(i);
+                String colLower = col.toLowerCase();
+                BiConsumer<Object, Object> setter = setters.get(colLower);
+
                 if (setter != null) {
-                    setter.accept(instance, rs.getObject(i));
+                    Object value = rs.getObject(i);
+                    // 详细调试日志
+                    if (debugMode) {
+                        String columnType = meta.getColumnTypeName(i);
+                        String javaType = value != null ? value.getClass().getName() : "null";
+                        String fieldName = getFieldNameForColumn(colLower);
+                        Field field = fieldCache.get(fieldName);
+                        String targetType = field != null ? field.getType().getName() : "unknown";
+                        log.debug("Mapping column: {} (DB: {}) value: {} (Java: {}) -> field: {} (Target: {})",
+                                col, columnType, value, javaType, fieldName, targetType);
+                    }
+
+                    setter.accept(instance, value);
                 }
             }
             return instance;
         } catch (Exception e) {
             throw new SyncException("Row mapping failed", e);
         } finally {
-            // 恢复原来的类加载器
             Thread.currentThread().setContextClassLoader(originalClassLoader);
+        }
+    }
+
+    /**
+     * 根据列名获取字段名
+     */
+    private String getFieldNameForColumn(String columnName) {
+        for (Map.Entry<String, String> entry : columnMappings.entrySet()) {
+            if (entry.getValue().equalsIgnoreCase(columnName)) {
+                return entry.getKey();
+            }
+        }
+        return columnName;
+    }
+
+    /**
+     * 创建实体实例
+     */
+    private T createEntityInstance() {
+        try {
+            return entityType.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new SyncException("Cannot create entity instance for: " + entityType.getName(), e);
         }
     }
 
     private Map<String, BiConsumer<Object, Object>> buildSetterMap(Class<?> clazz) {
         Map<String, BiConsumer<Object, Object>> map = new HashMap<>();
 
-        for (Field field : clazz.getDeclaredFields()) {
-            String columnName = Optional.ofNullable(columnMappings.get(field.getName()))
-                    .orElse(field.getName())
-                    .toLowerCase();
+        for (Map.Entry<String, String> entry : columnMappings.entrySet()) {
+            String fieldName = entry.getKey();
+            String columnName = entry.getValue().toLowerCase();
 
-            // 使用传统的反射方式创建setter
-            BiConsumer<Object, Object> setter = createReflectionSetter(field);
+            BiConsumer<Object, Object> setter = createReflectionSetter(fieldName);
             map.put(columnName, setter);
         }
+
+        if (debugMode) {
+            log.debug("Built setter map for {}: {} entries", clazz.getName(), map.size());
+        }
+
         return map;
     }
 
-    private BiConsumer<Object, Object> createReflectionSetter(Field field) {
+    private BiConsumer<Object, Object> createReflectionSetter(String fieldName) {
         return (instance, value) -> {
             try {
-                ReflectionUtils.setFieldValue(instance,field.getName(),value);
+                // 使用增强的ReflectionUtils（包含类型转换）
+                ReflectionUtils.setFieldValue(instance, fieldName, value);
             } catch (Exception e) {
+                // 如果反射设置失败，尝试使用setter方法
                 try {
-                    PropertyDescriptor pd = new PropertyDescriptor(field.getName(), field.getDeclaringClass());
-                    Method setter = pd.getWriteMethod();
+                    Method setter = setterCache.get(fieldName);
                     if (setter != null) {
-                        setter.invoke(instance, value);
+                        // 尝试使用setter方法
+                        Field field = fieldCache.get(fieldName);
+                        if (field != null) {
+                            // 先使用ReflectionUtils转换类型，再调用setter
+                            Object convertedValue = ReflectionUtils.getFieldValue(instance, fieldName);
+                            setter.invoke(instance, convertedValue);
+                        } else {
+                            // 直接调用setter，让ReflectionUtils在setFieldValue中处理类型转换
+                            setter.invoke(instance, value);
+                        }
                     } else {
-                        throw new SyncException("No setter available for field: " + field.getName(), e);
+                        throw new SyncException("No setter available for field: " + fieldName, e);
                     }
                 } catch (Exception ex) {
-                    throw new SyncException("Failed to set field value: " + field.getName(), ex);
+                    throw new SyncException("Failed to set field value: " + fieldName, ex);
                 }
             }
         };
-    }
-
-    @SuppressWarnings("unchecked")
-    private void setter(Map<String, BiConsumer<Object, Object>> map, Field field, String columnName, MethodHandle handle) throws Throwable {
-        MethodType invokedType =
-                MethodType.methodType(void.class, Object.class, field.getType());
-        CallSite site = LambdaMetafactory.metafactory(
-                MethodHandles.lookup(),
-                "accept",
-                MethodType.methodType(BiConsumer.class),
-                handle.type().erase(),
-                handle,
-                handle.type());
-        BiConsumer<Object, Object> setter =
-                (BiConsumer<Object, Object>) site.getTarget().invokeExact();
-        map.put(columnName, setter);
-    }
-
-    /* 6. 创建实例：缓存无参构造器，避免每次都 newInstance */
-    private static <T> T newInstance(Class<T> clazz) {
-        try {
-            return clazz.getDeclaredConstructor().newInstance();
-        } catch (Exception e) {
-            throw new SyncException("Cannot create entity instance", e);
-        }
     }
 
     @Override
@@ -245,7 +300,8 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
                     .findFirst()
                     .orElseThrow(() -> new SyncException("Checkpoint field not found for column: " + checkpointColumn));
 
-            return ReflectionUtils.getFieldValue(entity, checkpointFieldName).toString();
+            Object value = ReflectionUtils.getFieldValue(entity, checkpointFieldName);
+            return value != null ? value.toString() : "";
         } catch (Exception e) {
             throw new SyncException("Failed to get record ID", e);
         }
@@ -260,7 +316,6 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
     @Override
     @SuppressWarnings("all")
     public String getMaxCheckpointInShard(int shardId, int totalShards) {
-
         // 1. 构造子查询
         String subQuery = baseCursorQuery
                 + " WHERE MOD(" + checkpointColumn + ", ?) = ?";
@@ -278,6 +333,14 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
         return maxCheckpoint == null ? "" : maxCheckpoint;
     }
 
+    @Override
+    public void close() {
+        // 清理资源
+        classMapMap.clear();
+        fieldCache.clear();
+        setterCache.clear();
+        columnMappings.clear();
+    }
 
     /**
      * 流式JDBC游标实现
@@ -288,6 +351,7 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
         private final Map<String, Object> params;
         private final RowMapper<T> rowMapper;
         private final DatabaseDialect dialect;
+        private final boolean debugMode;
 
         private Connection connection;
         private PreparedStatement statement;
@@ -305,30 +369,28 @@ public  class JdbcDataAccessorAdapter<T> implements DataAccessor<T> {
             this.params = params;
             this.rowMapper = rowMapper;
             this.dialect = dialect;
+            this.debugMode = org.slf4j.LoggerFactory.getLogger(getClass()).isDebugEnabled();
 
             init();
         }
 
         private void init() {
             try {
-                // 获取连接（使用Spring的连接工具）
                 connection = DataSourceUtils.getConnection(dataSource);
-
-                // 创建预处理语句
                 statement = dialect.prepareStatement(connection, sql);
 
-                // 设置参数
                 int index = 1;
                 for (Map.Entry<String, Object> entry : params.entrySet()) {
                     statement.setObject(index++, entry.getValue());
                 }
 
-                // 配置流式读取
                 dialect.configureStreaming(statement);
-
-                // 执行查询
                 resultSet = statement.executeQuery();
                 hasNext = resultSet.next();
+
+                if (debugMode) {
+                    log.debug("JDBC cursor initialized for query: {}", sql);
+                }
 
             } catch (SQLException e) {
                 closeResources();

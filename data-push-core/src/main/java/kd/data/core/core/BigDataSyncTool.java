@@ -80,7 +80,7 @@ public class BigDataSyncTool<T> {
         long startTime = System.currentTimeMillis();
         stats.setStartTime(startTime);
         stats.setStatus(Status.RUNNING);
-
+        stats.setTaskId(taskId);
         try {
             long totalRecords = dataAccessor.countRecords();
             stats.setTotalRecords(totalRecords);

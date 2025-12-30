@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -96,4 +97,29 @@ public class SyncStats {
             log.warn("Failed batches storage full");
         }
     }
+
+
+    // 持久化相关字段
+    private String taskId;
+    private Boolean persisted = false;
+    private LocalDateTime lastPersistTime;
+    private Integer version = 0;
+
+
+    /**
+     * 标记为已持久化
+     */
+    public void markPersisted() {
+        this.persisted = true;
+        this.lastPersistTime = LocalDateTime.now();
+        this.version++;
+    }
+
+    /**
+     * 判断是否需要持久化
+     */
+    public boolean needPersist() {
+        return !Boolean.TRUE.equals(persisted);
+    }
+
 }

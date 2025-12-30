@@ -1,5 +1,6 @@
 package kd.data.persistence;
 import kd.data.core.model.SyncConfig;
+import kd.data.core.model.SyncStats;
 import kd.data.service.entity.FieldMapping;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -49,6 +50,10 @@ public class ProcessModel extends BaseModel {
 
     /** 字段*/
     private List<FieldMapping> fields;
+
+
+    /**统计 */
+    private SyncStats syncStats;
 
 
 

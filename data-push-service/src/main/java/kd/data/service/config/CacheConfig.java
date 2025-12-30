@@ -18,7 +18,7 @@ public class CacheConfig {
     @Bean
     public Cache<String, SyncTaskConfig> taskCache() {
         return Caffeine.newBuilder()
-                .expireAfterWrite(2, TimeUnit.HOURS) // 写入后过期
+                .expireAfterWrite(7, TimeUnit.DAYS) // 写入后过期
                 .maximumSize(10_000)                 // 降低最大容量
                 .recordStats()                       // 开启统计
                 .removalListener((key, value, cause) ->

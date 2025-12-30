@@ -72,4 +72,32 @@ public class TaskConfigCache {
     public void clear(){
         completedTasksCache.cleanUp();
     }
+
+
+    // 新增：获取未持久化的统计
+    public List<SyncStats> getUnpersistedStats() {
+        List<SyncStats> unpersisted = new ArrayList<>();
+        completedTasksCache.asMap().forEach((taskId, stats) -> {
+            if (stats.needPersist()) {
+                unpersisted.add(stats);
+            }
+        });
+        return unpersisted;
+    }
+
+    // 新增：获取所有统计
+    public List<SyncStats> getAllStats() {
+        return new ArrayList<>(completedTasksCache.asMap().values());
+    }
+
+    // 新增：批量标记为已持久化
+    public void markStatsPersisted(List<String> taskIds) {
+        taskIds.forEach(taskId -> {
+            SyncStats stats = completedTasksCache.getIfPresent(taskId);
+            if (stats != null) {
+                stats.markPersisted();
+                completedTasksCache.put(taskId, stats);
+            }
+        });
+    }
 }

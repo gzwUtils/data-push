@@ -16,32 +16,26 @@ import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * 文件存储服务 - 按日期分片 + 文件滚动
- *
- * @author gaozw
- */
 @Slf4j
 public class FilePersistenceService implements PersistenceService<ProcessModel> {
 
-    // 配置参数
     private static final long MAX_FILE_SIZE = 100L * 1024 * 1024; // 100MB
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    // 运行时状态
+    // 文件类型后缀映射
+    private static final String CONFIG_SUFFIX = "0"; // 配置文件后缀
+    private static final String STATS_SUFFIX = "1";  // 统计文件后缀
+
     private final Path baseStoragePath;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private BufferedWriter currentWriter;
-    private Path currentFilePath;
-    private LocalDate currentDate;
-    private final AtomicLong currentFileSize = new AtomicLong(0);
-    private final ReentrantLock fileLock = new ReentrantLock();
 
-    // 文件序列计数器
-    private int fileSequence = 0;
+    // 为每种类型维护独立的写入上下文
+    private final ConcurrentMap<String, FileWriterContext> writerContexts = new ConcurrentHashMap<>();
 
     public FilePersistenceService() {
         this(Paths.get("data/persistence"));
@@ -56,7 +50,8 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
     public void persist(ProcessModel model) {
         try {
             String json = objectMapper.writeValueAsString(model);
-            writeToFile(json);
+            String fileSuffix = determineFileSuffix(model); // 根据模型类型决定文件后缀
+            writeToFile(fileSuffix, json);
         } catch (IOException e) {
             log.error("文件持久化失败 {}", e.getMessage(), e);
             throw new PersistenceException("文件持久化失败");
@@ -68,7 +63,8 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
         try {
             for (ProcessModel model : models) {
                 String json = objectMapper.writeValueAsString(model);
-                writeToFile(json);
+                String fileSuffix = determineFileSuffix(model);
+                writeToFile(fileSuffix, json);
             }
         } catch (IOException e) {
             log.error("批量文件持久化失败 {}", e.getMessage(), e);
@@ -76,71 +72,33 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
         }
     }
 
-    private void writeToFile(String json) throws IOException {
-        fileLock.lock();
+    /**
+     * 根据模型类型决定文件后缀
+     * 0: 配置类型 (CONFIG)
+     * 1: 统计类型 (STATS)
+     */
+    private String determineFileSuffix(ProcessModel model) {
+        // 根据syncStats判断类型
+        return (model.getSyncStats() != null) ? STATS_SUFFIX : CONFIG_SUFFIX;
+    }
+
+    private void writeToFile(String fileSuffix, String json) throws IOException {
+        FileWriterContext context = writerContexts.computeIfAbsent(fileSuffix,
+                key -> new FileWriterContext(baseStoragePath, key));
+
+        context.lock();
         try {
-            // 检查是否需要创建新文件
-            if (shouldCreateNewFile()) {
-                createNewFile();
+            if (context.shouldCreateNewFile()) {
+                context.createNewFile();
             }
 
-            // 写入数据
             String dataLine = json + System.lineSeparator();
-            byte[] bytes = dataLine.getBytes(StandardCharsets.UTF_8);
-
-            currentWriter.write(dataLine);
-            currentWriter.flush(); // 确保数据立即写入
-
-            // 更新文件大小
-            currentFileSize.addAndGet(bytes.length);
+            context.writer.write(dataLine);
+            context.writer.flush();
+            context.currentFileSize.addAndGet(dataLine.getBytes(StandardCharsets.UTF_8).length);
         } finally {
-            fileLock.unlock();
+            context.unlock();
         }
-    }
-
-    private boolean shouldCreateNewFile() {
-        // 第一次写入
-        if (currentWriter == null) {
-            return true;
-        }
-
-        // 日期变化
-        if (!LocalDate.now().equals(currentDate)) {
-            return true;
-        }
-
-        // 文件大小超过限制
-        return currentFileSize.get() >= MAX_FILE_SIZE;
-    }
-
-    private void createNewFile() throws IOException {
-        // 关闭当前文件
-        closeCurrentFile();
-
-        // 准备新文件路径
-        LocalDate today = LocalDate.now();
-        String dateDir = today.format(DATE_FORMAT);
-
-        Path datePath = baseStoragePath.resolve(dateDir);
-        ensureDirectoryExists(datePath);
-
-        // 生成新文件名
-        String filename = String.format("%s_%03d.log",
-                dateDir, fileSequence++);
-
-        currentFilePath = datePath.resolve(filename);
-        currentDate = today;
-
-        // 创建新文件
-        currentWriter = Files.newBufferedWriter(
-                currentFilePath,
-                StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.APPEND
-        );
-
-        currentFileSize.set(0);
-        log.info("创建新存储文件: {}", currentFilePath);
     }
 
     private void ensureDirectoryExists(Path path) {
@@ -152,28 +110,76 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
         }
     }
 
-    private void closeCurrentFile() {
-        if (currentWriter != null) {
-            try {
-                currentWriter.close();
-                log.info("关闭存储文件: {} (大小: {} MB)",
-                        currentFilePath,
-                        currentFileSize.get() / (1024 * 1024));
-            } catch (IOException e) {
-                log.error("文件关闭失败: {}", currentFilePath, e);
-            } finally {
-                currentWriter = null;
-            }
-        }
-    }
-
     @Override
     public void shutdown() {
-        fileLock.lock();
-        try {
-            closeCurrentFile();
-        } finally {
-            fileLock.unlock();
+        writerContexts.values().forEach(FileWriterContext::close);
+    }
+
+    /**
+     * 文件写入上下文
+     */
+    private static class FileWriterContext {
+        private final Path basePath;
+        private final String fileSuffix; // 文件后缀: "0" 或 "1"
+        private final ReentrantLock lock = new ReentrantLock();
+        private BufferedWriter writer;
+        private Path currentFilePath;
+        private LocalDate currentDate;
+        private final AtomicLong currentFileSize = new AtomicLong(0);
+        private int fileSequence = 0;
+
+        FileWriterContext(Path basePath, String fileSuffix) {
+            this.basePath = basePath;
+            this.fileSuffix = fileSuffix;
+        }
+
+        void lock() { lock.lock(); }
+        void unlock() { lock.unlock(); }
+
+        boolean shouldCreateNewFile() {
+            if (writer == null) return true;
+            if (!LocalDate.now().equals(currentDate)) return true;
+            return currentFileSize.get() >= MAX_FILE_SIZE;
+        }
+
+        void createNewFile() throws IOException {
+            close();
+
+            LocalDate today = LocalDate.now();
+            String dateDir = today.format(DATE_FORMAT);
+            Path datePath = basePath.resolve(dateDir);
+            Files.createDirectories(datePath);
+
+            // 生成文件名: yyyyMMdd_xxx.后缀
+            String filename = String.format("%s_%03d.%s",
+                    dateDir, fileSequence++, fileSuffix);
+            currentFilePath = datePath.resolve(filename);
+            currentDate = today;
+
+            writer = Files.newBufferedWriter(
+                    currentFilePath,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND
+            );
+
+            currentFileSize.set(0);
+
+            // 日志中显示文件类型信息
+            String fileType = CONFIG_SUFFIX.equals(fileSuffix) ? "config" : "stats";
+            log.info("创建新文件: {} (类型: {})",
+                    currentFilePath, fileType);
+        }
+
+        void close() {
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (IOException e) {
+                    log.error("文件关闭失败: {}", currentFilePath, e);
+                }
+                writer = null;
+            }
         }
     }
 }

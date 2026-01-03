@@ -17,7 +17,7 @@ import java.util.Map;
 public class SyncConfig implements Serializable {
 
     // 线程池配置
-    private int corePoolSize = Runtime.getRuntime().availableProcessors();
+    private int corePoolSize = Runtime.getRuntime().availableProcessors() * 2;
     private int maxPoolSize = corePoolSize * 4;
     private int queueCapacity = 100_000;
 
@@ -34,7 +34,7 @@ public class SyncConfig implements Serializable {
     private long recordsPerShard = 1_000_000L;
 
     // 超时配置
-    private int lockTimeout = 1000;
+    private int lockTimeout = 1000 * 60;
     private int lockRenewInterval = 30; // 新增锁续期间隔
     private int shardTimeout = 3600;
     private int globalTimeout = 24 * 3600;

@@ -32,17 +32,18 @@ public class FilePersistenceService implements PersistenceService<ProcessModel> 
     private static final String STATS_SUFFIX = "1";  // 统计文件后缀
 
     private final Path baseStoragePath;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     // 为每种类型维护独立的写入上下文
     private final ConcurrentMap<String, FileWriterContext> writerContexts = new ConcurrentHashMap<>();
 
-    public FilePersistenceService() {
-        this(Paths.get("data/persistence"));
+    public FilePersistenceService(ObjectMapper objectMapper) {
+        this(Paths.get("data/persistence"), objectMapper);
     }
 
-    public FilePersistenceService(Path baseStoragePath) {
+    public FilePersistenceService(Path baseStoragePath, ObjectMapper objectMapper) {
         this.baseStoragePath = baseStoragePath;
+        this.objectMapper = objectMapper;
         ensureDirectoryExists(baseStoragePath);
     }
 

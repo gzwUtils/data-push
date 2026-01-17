@@ -1,5 +1,6 @@
 package kd.data.persistence.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import kd.data.core.persistence.PersistenceService;
 import kd.data.persistence.ProcessControl;
 import kd.data.persistence.ProcessModel;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import javax.annotation.Resource;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,6 +25,7 @@ import java.util.Map;
  * @author gaozw
  * @date 2025/8/11 18:31
  */
+@SuppressWarnings("unused")
 @EnableScheduling
 @ConditionalOnProperty(prefix = "persistence", name = "enabled", havingValue = "true")
 @Configuration
@@ -32,13 +35,16 @@ public class PipelineConfig {
     @Value("${persistence.mode:jdbc}")
     private  String mode;
 
+    @Resource
+    private ObjectMapper objectMapper;
+
     @Bean
     public PersistenceService<ProcessModel> persistenceService() {
         switch (mode.toLowerCase()) {
             case "jdbc":
                 return new JdbcPersistenceService();
             case "file":
-                return new FilePersistenceService();
+                return new FilePersistenceService(objectMapper);
             default:
                 throw new IllegalArgumentException("不支持的持久化模式: " + mode);
         }
